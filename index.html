@@ -366,19 +366,19 @@ font-weight: bold;
 
 .calendar-headline { 
 
-    font-size: 15px; 
+    font-size: 10px; 
 
     font-weight: bold; 
 
-    color: #FF0000; /* Change text color to white for better contrast */ 
+    color: #CC5500; /* Change text color to white for better contrast */ 
 
     margin: 5px; 
 
-    padding: 5px; /* Add padding for better spacing */ 
+    padding: 5px 20px; /* Add padding for better spacing */ 
 
-    background: linear-gradient(180deg, #f9e5e8, #fffcfc); /* Use a darker shade for the background */ 
+    background: linear-gradient(180deg, #fff2a5, #f6ead4); /* Use a darker shade for the background */ 
 
-    border: 2px solid darkred; /* Define border width, style, and color */ 
+    border: 2px solid #FFAC1C; /* Define border width, style, and color */ 
 
     border-radius: 20px; /* Rounded corners */ 
 
@@ -395,7 +395,7 @@ font-weight: bold;
 
 .calendar-headline { 
 
-    font-size: 1.5rem; /* 24px (16px * 1.5) */ 
+    font-size: 1.1rem; /* 24px (16px * 1.5) */ 
 
 } 
 
@@ -1314,32 +1314,65 @@ async function displayEvents(startDate, endDate) {
  
  
 
-                if (dayEvents.length > 0) { 
-    dayEvents.forEach(event => { 
-        const eventTime = document.createElement('div'); 
-        eventTime.className = 'event-time'; 
-        const startTime = new Date(event.start.dateTime || event.start.date); 
-        const endTime = new Date(event.end.dateTime || event.end.date); 
-        const formattedStartTime = formatTime(startTime); 
-        const formattedEndTime = formatTime(endTime); 
-        eventTime.innerHTML = eventTitle.includes('❌') ? 
-            `<span class="strike" style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>` : 
-            `<span style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>`; 
+                if (dayEvents.length > 0) {
+    dayEvents.forEach(event => {
+        const eventTime = document.createElement('div');
+        eventTime.className = 'event-time';
+        const startTime = new Date(event.start.dateTime || event.start.date);
+        const endTime = new Date(event.end.dateTime || event.end.date);
+        const formattedStartTime = formatTime(startTime);
+        const formattedEndTime = formatTime(endTime);
 
-        // Check if the event title contains "X" (case-insensitive)
+        // Default time display
+        eventTime.innerHTML = `<span style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>`;
+
+        // Check the event title for specific emojis and apply corresponding criteria
         if (eventTitle.toLowerCase().includes('❌')) {
+            // Strike through and "معتذر" text
+            eventTime.innerHTML = `<span class="strike" style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>`;
             const apologyText = document.createElement('span');
-            apologyText.innerHTML = "&nbsp;&nbsp; معتذر &nbsp;&nbsp;";
+            apologyText.innerHTML = " معتذر ";
             apologyText.style.color = '#DC143C';
             apologyText.style.marginLeft = '5px';
-            apologyText.style.backgroundColor = '#FFCCCC'; // Light red background
-            apologyText.style.padding = '2px 5px'; // Add padding for better appearance
-            apologyText.style.borderRadius = '5px'; // Optional: Rounded corners
-            eventTime.appendChild(apologyText); // Append the "معتذر" text
+            apologyText.style.backgroundColor = '#FFCCCC';
+            apologyText.style.padding = '2px 5px';
+            apologyText.style.borderRadius = '5px';
+            eventTime.appendChild(apologyText);
+        } else if (eventTitle.includes('✔️')) {
+            // "بديل" text
+            const replacementText = document.createElement('span');
+            replacementText.innerHTML = " بديل ";
+            replacementText.style.color = '#228B22'; // Green color
+            replacementText.style.marginLeft = '5px';
+            replacementText.style.backgroundColor = '#CCFFCC'; // Light green background
+            replacementText.style.padding = '2px 5px';
+            replacementText.style.borderRadius = '5px';
+            eventTime.appendChild(replacementText);
+        } else if (eventTitle.includes('⚠️')) {
+            // "استثنائى" text
+            const exceptionalText = document.createElement('span');
+            exceptionalText.innerHTML = " استثنائى";
+            exceptionalText.style.color = '#CC5500'; // Orange color
+            exceptionalText.style.marginLeft = '5px';
+            exceptionalText.style.backgroundColor = '#FFE5CC'; // Light orange background
+            exceptionalText.style.padding = '2px 5px';
+            exceptionalText.style.borderRadius = '5px';
+            eventTime.appendChild(exceptionalText);
+        } else if (eventTitle.includes('❗')) {
+            // "حجز مسبق" text
+            const reservationText = document.createElement('span');
+            reservationText.innerHTML = " حجز مسبق ";
+            reservationText.style.color = '#1E90FF'; // Blue color
+            reservationText.style.marginLeft = '5px';
+            reservationText.style.backgroundColor = '#CCE5FF'; // Light blue background
+            reservationText.style.padding = '2px 5px';
+            reservationText.style.borderRadius = '5px';
+            eventTime.appendChild(reservationText);
         }
 
-        dayCell.appendChild(eventTime); 
-    }); 
+        dayCell.appendChild(eventTime);
+    });
+
 } else { 
     dayCell.textContent = '-'; 
 }
