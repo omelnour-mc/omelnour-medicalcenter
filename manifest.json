@@ -1,6 +1,6 @@
 {
   "name": "مركز أم النور الطبي",
-  "short_name": "ام النور",
+  "short_name": "مركز ام النور",
   "description": "التطبيق الرسمي لمركز أم النور الطبي، يقدم خدمات طبية متميزة.",
   "start_url": "/omelnour-medicalcenter/",
   "display": "standalone",
