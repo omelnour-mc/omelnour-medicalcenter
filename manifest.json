@@ -1,11 +1,11 @@
 {
   "name": "مركز أم النور الطبي",
-  "short_name": "مركز ام النور",
-  "description": "التطبيق الرسمي لمركز أم النور الطبي.",
-  "start_url": "/",
+  "short_name": "ام النور",
+  "description": "التطبيق الرسمي لمركز أم النور الطبي، يقدم خدمات طبية متميزة.",
+  "start_url": "/omelnour-medicalcenter/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#6e000b",
+  "theme_color": "#007bff",
   "icons": [
     {
       "src": "icon-192x192.png",
