@@ -3,6 +3,7 @@
 <html lang="ar"> 
 
 <head> 
+
     <meta charset="UTF-8"> 
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <meta property="og:image" content="https://omelnour-mc.github.io/omelnour-medicalcenter/assets/omelnour.png" />
@@ -12,6 +13,8 @@
     <meta property="og:image:height" content="512" />
     <meta property="og:title" content="مركز أم النور الطبى" />
     <meta property="og:description" content="مركز طبي شامل بفريق متخصص يوفر رعاية صحية متميزة" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk7JhWOVe9b6Y6lPt4o6HavI1k3JtXVfjgAh6w8p" crossorigin="anonymous">
     <title>جدول أطباء مركز أم النور الطبى</title> 
@@ -815,6 +818,7 @@ html {
     position: relative;
     margin: 0 auto; /* Center the carousel */
     width: 100%;
+
     overflow: hidden; /* Prevent shadows from bleeding outside */
     border-radius: 15px 15px 0px 0px; /* Rounded corners */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Add shadow to the carousel container */
@@ -1781,29 +1785,38 @@ document.getElementById('font-size').addEventListener('input', (event) => {
  
 
         function createClinicFilters() { 
-    const filtersContainer = document.getElementById('clinic-filters'); 
 
-    calendarIds.forEach(calendarId => { 
-        let calendarName = calendarNames[calendarId]?.name || calendarId;
-        calendarName = calendarName.replace('عيادات ✩ ', ''); // Remove 'عيادات ✩ '
+            const filtersContainer = document.getElementById('clinic-filters'); 
 
-        const label = document.createElement('label'); 
-        const checkbox = document.createElement('input'); 
+            calendarIds.forEach(calendarId => { 
 
-        checkbox.type = 'checkbox'; 
-        checkbox.value = calendarName; 
-        checkbox.checked = false; // Enable all clinics by default 
+                const calendarName = calendarNames[calendarId]?.name || calendarId; 
 
-        checkbox.addEventListener('change', () => { 
-            toggleCalendarVisibility(calendarName, checkbox.checked); 
-        }); 
+                const label = document.createElement('label'); 
 
-        label.appendChild(checkbox); 
-        label.appendChild(document.createTextNode(calendarName)); 
-        filtersContainer.appendChild(label); 
-    }); 
-}
+                const checkbox = document.createElement('input'); 
 
+                checkbox.type = 'checkbox'; 
+
+                checkbox.value = calendarName; 
+
+                checkbox.checked = false; // Enable all clinics by default 
+
+                checkbox.addEventListener('change', () => { 
+
+                    toggleCalendarVisibility(calendarName, checkbox.checked); 
+
+                }); 
+
+                label.appendChild(checkbox); 
+
+                label.appendChild(document.createTextNode(calendarName)); 
+
+                filtersContainer.appendChild(label); 
+
+            }); 
+
+        } 
 
  
  
