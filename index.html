@@ -110,7 +110,7 @@ padding: 10px;
 
         .filters { 
 
-            margin-bottom: 20px; 
+            margin-bottom: 5px; 
 
             text-align: right; 
 
@@ -493,54 +493,27 @@ html {
 
 } 
 
- 
- 
 
-.filters h5 { 
-
-    display: flex; 
-
-    flex-wrap: wrap; 
-
-    align-items: center; 
-
-    gap: 5px; 
-
-    direction: rtl; 
-
-} 
 
  
  
 
-#clinic-filters { 
+#clinic-filters {
+    display: block; /* Ensure clinic-filters stays visible */
+    flex-wrap: wrap;
+    gap: 5px; /* More space between elements for better layout */
+    direction: rtl;
+    margin-top: 5px; /* Increased top margin for better separation */
+    justify-content: right; /* Center the items horizontally */
+    text-align: right; /* Center text within the container */
+}
+#filter-content {
+    opacity: 0; /* Hidden by default */
+    max-height: 0; /* Initially collapsed */
+    overflow: hidden; /* Ensures the content is not visible until fully expanded */
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
 
-    display: flex; 
-
-    flex-wrap: wrap; 
-
-    gap: 20px; /* More space between elements for better layout */ 
-
-    direction: rtl; 
-
-    margin-top: 20px; /* Increased top margin for better separation */ 
-
-    transition: max-height 0.3s ease-out, opacity 0.3s ease-out; 
-
-    max-height: 500 px; 
-
-    overflow: hidden; 
-
-    opacity: 1; 
-
-    justify-content: right; /* Center the items horizontally */ 
-
-    text-align: right; /* Center text within the container */ 
-
-} 
-
- 
- 
 
 #clinic-filters label {
     display: inline-flex;
@@ -548,7 +521,7 @@ html {
     gap: 1px; /* Increase space between checkbox and label for a cleaner look */
     margin: 0;
     white-space: nowrap; /* Prevent wrapping of label text */
-     justify-content: space-between;
+    justify-content: space-between;
     font-size: 0.7rem; /* Consistent font size */
     padding: 1px; /* Add some padding for a more spacious look */
     border-radius: 8px; /* Rounded corners for a softer look */
@@ -582,23 +555,15 @@ html {
  
  
  
-
-#clinic-filters.hide { 
-
-    max-height: 0px; /* Adjust based on content height */ 
-
-    opacity: 0; 
-
-} 
-
- 
- 
+#clinic-filters.show #filter-content { 
+    opacity: 1; 
+    max-height: 500px; /* Adjust max-height as needed to fit content */
+}
 
 #arrow-icon { 
-
     transition: transform 0.3s ease-out; 
+}
 
-} 
 
 #arrow-icon_s { 
 
@@ -610,10 +575,8 @@ html {
  
 
 #arrow-icon.rotate { 
-
     transform: rotate(180deg); 
-
-} 
+}
 
 #arrow-icon_s.rotate { 
 
@@ -977,39 +940,32 @@ html {
        <div class="spinner"></div> 
     </div> 
 </div>
-    <div class="filters"> 
-        <h5 onclick="toggleFilters()" style="cursor: pointer;"> 
-            العيادات المتاحة <span id="arrow-icon">▲</span> 
-        </h5> 
-        <div class="fill-settings-container">
+<div class="filters">
+    <div class="fill-settings-container">
+        <div id="clinic-filters" style="display: block;">
+            <span onclick="toggleFilters()" style="cursor: pointer;"><span id="arrow-icon">▼</span>
+                اختار التخصص
+            </span>
+
+            <!-- New container for filter content -->
+            <div id="filter-content">
+                <div id="checkboxes-container"></div>
+                <div class="date-navigation" id="calendar-buttons">
+                    <button style=" border: 1px solid darkblue; border-radius: 10px; font-weight: bold;font-size:0.8rem;" id="show-all">✅ تحديد الكل</button>
+                    <button style=" border: 1px solid darkblue; border-radius: 10px; font-weight: bold;font-size:0.8rem;" id="hide-all">❌ الغاء الكل</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 
- 
- 
-
-        <div id="clinic-filters" style="display: block;"> 
-
-            <div class="date-navigation" id="calendar-buttons"> 
-                <button style=" background-color: white; border:2px solid darkblue; border-radius:20px; color:darkblue;font-weight:bold;" id="show-all">✅ تحديد الكل</button> 
-                <button style=" background-color: white; border:2px solid darkblue; border-radius:20px; color:darkblue;font-weight:bold;" id="hide-all">❌ الغاء الكل</button> 
-
-     
-
-                
-
-         
-
-            </div> 
-
-        </div> 
-
-    </div> 
 </div>
     <div class="filters"> 
 
-        <h5 onclick="toggleSettings()" style="cursor: pointer;"> 
+        <h5 onclick="toggleSettings()" style="cursor: pointer;"> <span id="arrow-icon_s">▼</span> 
 
-            إعدادات الصفحة <span id="arrow-icon_s">▼</span> 
+            إعدادات الصفحة 
 
         </h5> 
 
@@ -1785,11 +1741,14 @@ document.getElementById('font-size').addEventListener('input', (event) => {
  
 
         function createClinicFilters() { 
-    const filtersContainer = document.getElementById('clinic-filters'); 
+    const filtersContainer = document.getElementById('checkboxes-container'); // Change here to target the correct container
+
+    // Clear any existing checkboxes before appending new ones
+    filtersContainer.innerHTML = '';
 
     calendarIds.forEach(calendarId => { 
         let calendarName = calendarNames[calendarId]?.name || calendarId;
-        calendarName = calendarName.replace('', ''); // Remove ''
+        calendarName = calendarName.replace('', ''); // Remove '' if needed
 
         const label = document.createElement('label'); 
         const checkbox = document.createElement('input'); 
@@ -1808,9 +1767,30 @@ document.getElementById('font-size').addEventListener('input', (event) => {
     }); 
 }
 
+function toggleFilters() {
+    const filtersDiv = document.getElementById('clinic-filters');
+    const arrowIcon = document.getElementById('arrow-icon');
+    const filterContent = document.getElementById('filter-content');
 
- 
- 
+    // Toggle visibility of the filter content
+    if (filterContent.style.opacity === '0' || filterContent.style.opacity === '') {
+        filterContent.style.display = 'block'; // Show the filter content
+        setTimeout(() => {
+            filterContent.style.opacity = '1';
+            filterContent.style.maxHeight = '500px'; // Adjust max-height as needed
+        }, 10);
+        arrowIcon.classList.add('rotate');
+    } else {
+        filterContent.style.opacity = '0';
+        filterContent.style.maxHeight = '0';
+        arrowIcon.classList.remove('rotate');
+
+        setTimeout(() => {
+            filterContent.style.display = 'none'; // Hide the filter content
+        }, 300); // Match the transition duration
+    }
+}
+
 
         // Event listener for the "Today's Clinic" button 
 
@@ -1840,39 +1820,6 @@ document.getElementById('search-button').addEventListener('click', () => {
  
  
  
-
-function toggleFilters() { 
-
-    const filtersDiv = document.getElementById('clinic-filters'); 
-
-    const arrowIcon = document.getElementById('arrow-icon'); 
-
- 
- 
-
-    if (filtersDiv.style.display === 'none') { 
-
-        filtersDiv.style.display = 'block'; 
-
-        filtersDiv.classList.remove('hide'); 
-
-        arrowIcon.classList.remove('rotate'); 
-
-    } else { 
-
-        filtersDiv.classList.add('hide'); 
-
-        arrowIcon.classList.add('rotate'); 
-
-        setTimeout(() => { 
-
-            filtersDiv.style.display = 'none'; 
-
-        }, 300); // Match the transition duration 
-
-    } 
-
-} 
 
  
  
