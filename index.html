@@ -354,7 +354,7 @@ font-weight: bold;
 
 .slider-label {
     display: flex;
-    align-items: center;
+    align-items: right;
     gap: 5px; /* Minimal space between slider and label text */
     font-size: 1.0rem;  white-space: nowrap; /* Prevents label text from wrapping */
 }
@@ -642,17 +642,7 @@ html {
  
  
 
-.settings-container { 
-    display: flex; 
-    flex-direction: column; 
-    gap: 15px; /* Space between items */ 
-    background: #f9f9f9; 
-    padding: 15px; 
-    border-radius: 10px; 
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); 
-    max-width: 100%; /* Prevents it from becoming too wide */ 
-    text-align: center; /* Center-align text within the container */ 
-} 
+
 
 
  
@@ -660,24 +650,12 @@ html {
 
 .setting-item { 
     display: flex; 
-    align-items: center; 
+    align-items: right; 
     gap: 5px; 
-    justify-content: center; /* Center-align the label and input horizontally */ 
+    text-align: right; /* Center-align the label and input horizontally */ 
 } 
 
  
-
-
-.setting-group { 
-    display: flex; 
-    gap: 10px; /* Space between checkboxes */ 
-    flex-wrap: wrap; /* Allows wrapping if the space is too tight */ 
-    justify-content: center; /* Center-align checkboxes horizontally */ 
-} 
-
- 
- 
-
 .checkbox-label { 
     display: flex; 
     align-items: center; 
@@ -859,17 +837,113 @@ html {
 }
   
 
-.fill-settings-container {
-  width: 100%;
-  max-width: 800px;
-  margin: 5px auto;
-  padding: 5px;
-  background-color: #edf6f9;
-  border-radius: 15px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
 
+#settings-filters {
+    display: block;
+    flex-wrap: wrap;
+    gap: 5px;
+    direction: rtl;
+    margin-top: 5px;
+    justify-content: right;
+    text-align: right;
 }
- 
+
+#settings-content {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px; /* Space between checkbox and label */
+    font-size: 0.9rem; /* Font size for checkboxes */
+}
+
+#settings-filters.show #settings-content {
+    opacity: 1;
+    max-height: 500px; /* Adjust max-height as needed */
+}
+
+#arrow-icon_s {
+    transition: transform 0.3s ease-out;
+}
+
+#arrow-icon_s.rotate {
+    transform: rotate(180deg);
+}
+
+
+.fill-settings-container {
+    background-color: #e2f5f5;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+
+    max-width: 800px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+
+
+#settings-content {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+
+
+.setting-item label {
+    display: block;
+    font-size: 0.9rem;
+    color: #555;
+}
+
+.slider-container {
+    display: flex;
+    align-items: right;
+    gap: 10px;
+}
+
+.slider-container input[type="range"] {
+    flex: 1;
+}
+
+.slider-container span {
+    font-size: 0.9rem;
+    color: #333;
+}
+
+
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #555;
+    margin-bottom: 8px;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin: 0;
+}
+
+#settings-filters.show #settings-content {
+    opacity: 1;
+    max-height: 500px;
+}
+
+#arrow-icon_s {
+    transition: transform 0.3s ease-out;
+}
+
+#arrow-icon_s.rotate {
+    transform: rotate(180deg);
+}
     </style> 
 
 </head> 
@@ -961,76 +1035,59 @@ html {
 
 
 </div>
-    <div class="filters"> 
 
-        <h5 onclick="toggleSettings()" style="cursor: pointer;"> <span id="arrow-icon_s">▼</span> 
+<div class="fill-settings-container">
+    <div id="settings-filters" style="display: block;">
+        <div class="settings-header" onclick="toggleSettings()" style="cursor: pointer;">
+            <span id="arrow-icon_s">▼</span>
+            <span style="color: rgb(124, 1, 1); font-weight: bold;">إعدادات الصفحة</span>
+        </div>
 
-            إعدادات الصفحة 
+        <!-- New container for settings content -->
+        <div id="settings-content">
+            <div class="setting-item">
+                <label for="font-size">حجم الخط:</label>
+                <div class="slider-container">
+                    <input type="range" id="font-size" min="50" max="200" value="100" step="10">
+                    <span id="font-size-percentage">100%</span>
+                </div>
+            </div>
 
-        </h5> 
+            <div class="setting-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggleSelectedDates" checked>
+                    <span>تواريخ جدول العيادات</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggleSelectedDays" checked>
+                    <span>أيام جدول العيادات</span>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="toggleDayDates">
+                    <span>التاريخ + اليوم</span>
+                </label>
+            </div>
 
-        <div id="Settings" class="settings-container" style="display: none;"> 
+            <div id="headline-settings" class="font-size-control">
+                <div class="setting-item">
+                    <label for="font-size-slider">حجم خط العنوان:</label>
+                    <div class="slider-container">
+                        <input type="range" id="font-size-slider" min="5" max="300" value="100" step="5">
+                        <span id="font-size-value">100%</span>
+                    </div>
+                </div>
 
-            <div class="setting-item"> 
-
-                <label for="font-size">حجم الخط:</label> 
-
-                <input type="range" id="font-size" min="50" max="200" value="100" step="10"> 
-
-                <span id="font-size-percentage">100%</span> 
-
-            </div> 
-
-            <div class="setting-group"> 
-
-                <label class="checkbox-label"> 
-
-                    <input type="checkbox" id="toggleSelectedDates" checked> تواريخ جدول العيادات 
-
-                </label> 
-
-                <label class="checkbox-label"> 
-
-                    <input type="checkbox" id="toggleSelectedDays" checked> أيام جدول العيادات 
-
-                </label> 
-
-                <label class="checkbox-label"> 
-
-                    <input type="checkbox" id="toggleDayDates"> التاريخ + اليوم 
-
-                </label> 
-
-            </div> 
-
-            <div id="headline-settings" class="font-size-control" style="display: block;"> 
-
-                <!-- Font Size Slider --> 
-
-<label for="font-size-slider">حجم خط العنوان:</label> 
-<input type="range" id="font-size-slider" min="5" max="300" value="100" step="5"> 
-
-<span id="font-size-value">100%</span> 
-
- 
- 
-
-<!-- Width Slider --> 
-
-<label for="width-slider">عرض العنوان:</label> 
-
-<input type="range" id="width-slider" min="10" max="100" value="100" step="1"> 
-
-<span id="width-value">50%</span> 
-
-            </div> 
-
-        </div> 
-
-    </div> 
-
-     
-
+                <div class="setting-item">
+                    <label for="width-slider">عرض العنوان:</label>
+                    <div class="slider-container">
+                        <input type="range" id="width-slider" min="10" max="100" value="100" step="1">
+                        <span id="width-value">50%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
     <div id="days-container"></div> 
 
     
@@ -1824,39 +1881,29 @@ document.getElementById('search-button').addEventListener('click', () => {
  
  
 
-function toggleSettings() { 
+function toggleSettings() {
+    const settingsDiv = document.getElementById('settings-filters');
+    const arrowIcon = document.getElementById('arrow-icon_s');
+    const settingsContent = document.getElementById('settings-content');
 
-    const SettingsDiv = document.getElementById('Settings'); 
+    // Toggle visibility of the settings content
+    if (settingsContent.style.opacity === '0' || settingsContent.style.opacity === '') {
+        settingsContent.style.display = 'block'; // Show the settings content
+        setTimeout(() => {
+            settingsContent.style.opacity = '1';
+            settingsContent.style.maxHeight = '500px'; // Adjust max-height as needed
+        }, 10);
+        arrowIcon.classList.add('rotate');
+    } else {
+        settingsContent.style.opacity = '0';
+        settingsContent.style.maxHeight = '0';
+        arrowIcon.classList.remove('rotate');
 
-    const arrow = document.getElementById('arrow-icon_s'); 
-
- 
- 
-
-    if (SettingsDiv.style.display === 'none') { 
-
-        SettingsDiv.style.display = 'block'; 
-
-        SettingsDiv.classList.add('show'); 
-
-        arrow.classList.add('rotate'); 
-
-    } else { 
-
-        SettingsDiv.classList.remove('show'); 
-
-        arrow.classList.remove('rotate'); 
-
-        setTimeout(() => { 
-
-            SettingsDiv.style.display = 'none'; 
-
-        }, 300); // Match the transition duration 
-
-    } 
-
-} 
-
+        setTimeout(() => {
+            settingsContent.style.display = 'none'; // Hide the settings content
+        }, 300); // Match the transition duration
+    }
+}
  
  
 
