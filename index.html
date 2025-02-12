@@ -5,21 +5,15 @@
 <head> 
     <meta charset="UTF-8"> 
     <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
-    <link rel="manifest" href="manifest.json">
+    <meta property="og:image" content="https://omelnour-mc.github.io/omelnour-medicalcenter/assets/omelnour.png" />
+    <meta property="og:image:alt" content="مركز أم النور الطبى" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:title" content="مركز أم النور الطبى" />
+    <meta property="og:description" content="مركز طبي شامل بفريق متخصص يوفر رعاية صحية في بيئة مريحة للمرضى للشعور بالاطمئنان اثناء زيارتهم لنا" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk7JhWOVe9b6Y6lPt4o6HavI1k3JtXVfjgAh6w8p" crossorigin="anonymous">
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-<script>
-  window.OneSignalDeferred = window.OneSignalDeferred || [];
-  OneSignalDeferred.push(async function(OneSignal) {
-    await OneSignal.init({
-      appId: "83d1b88d-256d-4009-899f-fdeb81a6e214",
-    });
-  });
-</script>
-
-    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk7JhWOVe9b6Y6lPt4o6HavI1k3JtXVfjgAh6w8p" crossorigin="anonymous">
     <title>جدول أطباء مركز أم النور الطبى</title> 
 
 
@@ -102,16 +96,6 @@ padding: 10px;
   }
 }
  
-
-        .event-time { 
-
-            font-size: 12px; 
-
-            font-weight: bold; 
-
-            color: #FF0000; 
-
-        } 
 
         .no-events { 
 
@@ -242,19 +226,10 @@ padding: 10px;
 
 label {  
 
- 
- 
 
 margin: 5px; /* Adds space between label and input */  
 
- 
- 
-
 color:grey;  
-
- 
- 
-
 font-weight: bold;  
 
  
@@ -269,6 +244,7 @@ font-weight: bold;
 .calendar-table th, .calendar-table td { 
 
     border: 1px solid #ddd; 
+    font-size:0.75rem;
 
     padding: 7px; /* Increase padding for better spacing */ 
 
@@ -318,9 +294,9 @@ font-weight: bold;
  
 
 .event-time { 
-    font-size: 14px; /* Slightly larger font for event times */ 
+
     font-weight: bold; 
-    color: #FF0000; 
+    color: #1100ff; 
     padding: 2px; /* Add padding for better spacing */ 
     background-color: #fff3f3; /* Light background for event times */ 
     border-radius: 5px; /* Rounded corners for event times */ 
@@ -333,7 +309,7 @@ font-weight: bold;
 
 .no-events { 
 
-    font-size: 14px; 
+    font-size:0.75rem;
 
     color: #888; /* Lighter color for no events */ 
 
@@ -346,7 +322,7 @@ font-weight: bold;
 
 .calendar-headline { 
 
-    font-size: 1.1rem; 
+    font-size: 1.0rem; 
 
     font-weight: bold; 
 
@@ -370,18 +346,6 @@ font-weight: bold;
 
 } 
 
- 
- 
-
-.calendar-headline { 
-
-    font-size: 1.1rem; /* 24px (16px * 1.5) */ 
-
-} 
-
- 
- 
- 
 
 /* Style for the sliders and labels */ 
 
@@ -519,16 +483,10 @@ html {
 } 
 
 
-.event-time { 
-
-    font-size: 0.875rem; /* 14px (16px * 0.875) */ 
-
-} 
-
 
 .calendar-table th { 
 
-    font-size: 1.0rem; /* 14px (16px * 0.875) */ 
+    font-size: 0.8rem; /* 14px (16px * 0.875) */ 
 
 } 
 
@@ -857,7 +815,6 @@ html {
     position: relative;
     margin: 0 auto; /* Center the carousel */
     width: 100%;
-    max-width:; /* Constrain the carousel width */
     overflow: hidden; /* Prevent shadows from bleeding outside */
     border-radius: 15px 15px 0px 0px; /* Rounded corners */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Add shadow to the carousel container */
@@ -885,6 +842,7 @@ html {
     overflow: hidden; /* Ensure rounded corners are visible */ 
     background-color: #fff; /* White background for the table */ 
     outline: 2px solid #0353a8; /* Add an outline to the whole table */ 
+
 }
 
 
@@ -1431,16 +1389,16 @@ async function displayEvents(startDate, endDate) {
         const formattedEndTime = formatTime(endTime);
 
         // Default time display
-        eventTime.innerHTML = `<span style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>`;
+        eventTime.innerHTML = `<span style="color: #1c670a;background-color:#ffffba">${formattedStartTime} - ${formattedEndTime}</span>`;
 
         // Check the event title for specific emojis and apply corresponding criteria
         if (eventTitle.toLowerCase().includes('❌')) {
             // Strike through and "معتذر" text
             eventTime.innerHTML = `<span class="strike" style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>`;
             const apologyText = document.createElement('span');
-            apologyText.innerHTML = " معتذر ";
+            apologyText.innerHTML = "معتذر";
             apologyText.style.color = '#DC143C';
-            apologyText.style.marginLeft = '5px';
+            apologyText.style.marginRight = '10px';
             apologyText.style.backgroundColor = '#FFCCCC';
             apologyText.style.padding = '2px 5px';
             apologyText.style.borderRadius = '5px';
@@ -1448,9 +1406,9 @@ async function displayEvents(startDate, endDate) {
         } else if (eventTitle.includes('✔️')) {
             // "بديل" text
             const replacementText = document.createElement('span');
-            replacementText.innerHTML = " بديل ";
+            replacementText.innerHTML = "بديل";
             replacementText.style.color = '#228B22'; // Green color
-            replacementText.style.marginLeft = '5px';
+            replacementText.style.marginRight = '10px';
             replacementText.style.backgroundColor = '#CCFFCC'; // Light green background
             replacementText.style.padding = '2px 5px';
             replacementText.style.borderRadius = '5px';
@@ -1458,9 +1416,9 @@ async function displayEvents(startDate, endDate) {
         } else if (eventTitle.includes('⚠️')) {
             // "استثنائى" text
             const exceptionalText = document.createElement('span');
-            exceptionalText.innerHTML = " استثناء";
+            exceptionalText.innerHTML = "استثناء";
             exceptionalText.style.color = '#CC5500'; // Orange color
-            exceptionalText.style.marginLeft = '5px';
+            exceptionalText.style.marginRight = '10px';
             exceptionalText.style.backgroundColor = '#FFE5CC'; // Light orange background
             exceptionalText.style.padding = '2px 5px';
             exceptionalText.style.borderRadius = '5px';
@@ -1468,9 +1426,9 @@ async function displayEvents(startDate, endDate) {
         } else if (eventTitle.includes('❗')) {
             // "حجز مسبق" text
             const reservationText = document.createElement('span');
-            reservationText.innerHTML = " حجز مسبق ";
+            reservationText.innerHTML = "حجز مسبق";
             reservationText.style.color = '#1E90FF'; // Blue color
-            reservationText.style.marginLeft = '5px';
+            reservationText.style.marginRight = '10px';
             reservationText.style.backgroundColor = '#CCE5FF'; // Light blue background
             reservationText.style.padding = '2px 5px';
             reservationText.style.borderRadius = '5px';
@@ -1600,11 +1558,12 @@ function hideSpinner() {
 
             const todayDateElement = document.getElementById('today-date'); 
 
-            const startFormattedDate = startDate.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).replace(/،/g, ' : '); 
+            const startFormattedDate = startDate.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).replace(/،/g, ' 📅 '); 
 
-            const endFormattedDate = endDate.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).replace(/،/g, ' : '); 
+            const endFormattedDate = endDate.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).replace(/،/g, ' 📅 '); 
 
-            todayDateElement.innerHTML = `<span style="color: black;">الفترة المحددة</span><br> من ${startFormattedDate} إلى ${endFormattedDate}`; 
+            todayDateElement.innerHTML = `<span style="color:black"> من </span>${startFormattedDate}<span style="color:black"> إلى </span>${endFormattedDate}`; 
+            todayDateElement.style.fontSize='0.9rem';
 
         } 
 
@@ -1822,38 +1781,29 @@ document.getElementById('font-size').addEventListener('input', (event) => {
  
 
         function createClinicFilters() { 
+    const filtersContainer = document.getElementById('clinic-filters'); 
 
-            const filtersContainer = document.getElementById('clinic-filters'); 
+    calendarIds.forEach(calendarId => { 
+        let calendarName = calendarNames[calendarId]?.name || calendarId;
+        calendarName = calendarName.replace('عيادات ✩ ', ''); // Remove 'عيادات ✩ '
 
-            calendarIds.forEach(calendarId => { 
+        const label = document.createElement('label'); 
+        const checkbox = document.createElement('input'); 
 
-                const calendarName = calendarNames[calendarId]?.name || calendarId; 
+        checkbox.type = 'checkbox'; 
+        checkbox.value = calendarName; 
+        checkbox.checked = false; // Enable all clinics by default 
 
-                const label = document.createElement('label'); 
+        checkbox.addEventListener('change', () => { 
+            toggleCalendarVisibility(calendarName, checkbox.checked); 
+        }); 
 
-                const checkbox = document.createElement('input'); 
+        label.appendChild(checkbox); 
+        label.appendChild(document.createTextNode(calendarName)); 
+        filtersContainer.appendChild(label); 
+    }); 
+}
 
-                checkbox.type = 'checkbox'; 
-
-                checkbox.value = calendarName; 
-
-                checkbox.checked = false; // Enable all clinics by default 
-
-                checkbox.addEventListener('change', () => { 
-
-                    toggleCalendarVisibility(calendarName, checkbox.checked); 
-
-                }); 
-
-                label.appendChild(checkbox); 
-
-                label.appendChild(document.createTextNode(calendarName)); 
-
-                filtersContainer.appendChild(label); 
-
-            }); 
-
-        } 
 
  
  
