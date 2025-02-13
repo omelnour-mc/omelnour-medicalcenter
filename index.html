@@ -27,7 +27,7 @@
 
 body { 
 
-font-family: Arial, sans-serif; 
+font-family: 'Alexandria', sans-serif; 
 background-color: white; 
 text-align: center; 
 padding: 10px; 
@@ -36,7 +36,7 @@ padding: 10px;
 
         .today-date { 
 
-            font-size: 18px; 
+            font-size: 0.9rem; 
 
             font-weight: bold; 
 
@@ -523,7 +523,7 @@ html {
     margin: 0;
     white-space: nowrap; /* Prevent wrapping of label text */
     justify-content: space-between;
-    font-size: 0.7rem; /* Consistent font size */
+    font-size: 1.0rem; /* Consistent font size */
     padding: 1px; /* Add some padding for a more spacious look */
     border-radius: 8px; /* Rounded corners for a softer look */
     background-color: #edf6f9; /* Light background for contrast */
@@ -881,7 +881,7 @@ html {
     background-color: #e2f5f5;
     border: 1px solid #ddd;
     border-radius: 8px;
-
+text-align: center;
     max-width: 800px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
@@ -1014,8 +1014,6 @@ html {
     <div id="loading-spinner" style="display: none;"> 
        <div class="spinner"></div> 
     </div> 
-</div>
-<div class="filters">
     <div class="fill-settings-container">
         <div id="clinic-filters" style="display: block;">
             <span onclick="toggleFilters()" style="cursor: pointer; color:darkblue;font-weight:bold;"><span id="arrow-icon">▼</span>
@@ -1032,10 +1030,6 @@ html {
             </div>
         </div>
     </div>
-</div>
-
-
-</div>
 
 <div class="fill-settings-container">
     <div id="settings-filters" style="display: block;">
