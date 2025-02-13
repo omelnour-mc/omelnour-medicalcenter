@@ -151,7 +151,7 @@ padding: 10px;
 
             display: flex; 
             flex-wrap: wrap; 
-            justify-content: space-between;
+         /*   justify-content: space-between;*/
             gap: 5px; 
             margin-bottom: 10px; 
 
@@ -170,7 +170,7 @@ padding: 10px;
             border-radius: 6px;
 
             cursor: pointer; 
-
+width:40%;
             font-size: 1rem;
             transition: background-color 0.3s ease; 
         } 
@@ -462,7 +462,6 @@ font-weight: bold;
 
     font-weight: bold; 
 
-    background-color: yellow; 
 
     display: none; /* Initially hidden */ 
 
@@ -1011,8 +1010,8 @@ padding: 0px 0px 20px 0px;
 
     <div class="date-navigation" id="calendar-buttons"> 
 
-        <button id="next-day">◀ القادم</button> 
-        <button id="prev-day">السابق ▶ </button> 
+        <button style="display:none;" id="next-day">◀ القادم</button> 
+        <button style="display:none;" id="prev-day">السابق ▶ </button>
 
         <button id="today-button">اليوم 📅</button>
 
@@ -1192,23 +1191,26 @@ padding: 0px 0px 20px 0px;
 
         // Main function to initialize the page 
 
-        async function main() { 
+       
 
-            if (!startDate || !endDate) return; 
+async function main() {
+    if (!startDate || !endDate) return;
 
-            const validatedDates = validateDateRange(startDate, endDate); 
+    const validatedDates = validateDateRange(startDate, endDate);
+    startDate = validatedDates.startDate;
+    endDate = validatedDates.endDate;
+    updateDatePickers(startDate, endDate);
+    displaySelectedDateRange(startDate, endDate);
 
-            startDate = validatedDates.startDate; 
+    const events = await fetchAllEvents(startDate, endDate);
 
-            endDate = validatedDates.endDate; 
+    if (events.length === 0) {
+        alert('لا توجد مواعيد متاحة للعيادات المحددة في التاريخ المختار.');
+        return;
+    }
 
-            updateDatePickers(startDate, endDate); 
-
-            displaySelectedDateRange(startDate, endDate); 
-
-            await displayEvents(startDate, endDate); 
-
-        } 
+    await displayEvents(startDate, endDate);
+}
 
         // Initialize the page 
 
@@ -1284,20 +1286,22 @@ createClinicFilters();
  
  
 
-async function displayEvents(startDate, endDate) { 
+async function displayEvents(startDate, endDate) {
+    showSpinner();
+    const daysContainer = document.getElementById('days-container');
+    daysContainer.innerHTML = '';
 
-    showSpinner(); // Show spinner when displaying starts 
+    const events = await fetchAllEvents(startDate, endDate);
 
-    const daysContainer = document.getElementById('days-container'); 
+    if (events.length === 0) {
+        daysContainer.innerHTML = '<div class="no-events">لا توجد مواعيد متاحة للعيادات المحددة في التاريخ المختار.</div>';
+        hideSpinner();
+        return;
+    }
 
-    daysContainer.innerHTML = ''; 
-
-    const events = await fetchAllEvents(startDate, endDate); 
 
     const groupedEvents = {}; 
 
- 
- 
 
     events.forEach(event => { 
 
@@ -1623,7 +1627,7 @@ function hideSpinner() {
 
             if (durationInDays > maxDuration) { 
 
-                errorMessageElement.textContent = 'الرجاء تحديد مدة لا تزيد عن 7 أيام.'; 
+                errorMessageElement.textContent = 'الرجاء تحديد مدة لا تزيد عن 7 أيام'; 
 
                 errorMessageElement.style.display = 'block'; 
 
@@ -1863,31 +1867,45 @@ function toggleFilters() {
 
         // Event listener for the "Today's Clinic" button 
 
-document.getElementById('today-button').addEventListener('click', () => { 
 
-    const today = new Date(); 
+ document.getElementById('today-button').addEventListener('click', () => {
+    const checkboxes = document.querySelectorAll('#clinic-filters input[type="checkbox"]');
+    const isAnyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
 
-    startDate = new Date(today); 
+    if (!isAnyChecked) {
+        alert('الرجاء اختيار عيادة واحدة على الأقل قبل الضغط على "اليوم".');
+        return;
+    }
 
-    endDate = new Date(today); 
+    const today = new Date();
+    startDate = new Date(today);
+    endDate = new Date(today);
+    updateDatePickers(startDate, endDate);
+    main();
+});
+ 
 
-    updateDatePickers(startDate, endDate); 
-
-    main(); 
-
-}); 
 
  
- 
+ document.getElementById('search-button').addEventListener('click', () => {
+    const checkboxes = document.querySelectorAll('#clinic-filters input[type="checkbox"]');
+    const isAnyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
 
-document.getElementById('search-button').addEventListener('click', () => { 
+    if (!isAnyChecked) {
+        alert('الرجاء اختيار عيادة واحدة على الأقل قبل الضغط على "بحث".');
+        return;
+    }
 
-    main(); 
+    const startDateValue = document.getElementById('start-date-picker').value;
+    const endDateValue = document.getElementById('end-date-picker').value;
 
-}); 
+    if (!startDateValue || !endDateValue) {
+        alert('الرجاء اختيار تاريخ صحيح قبل الضغط على "بحث".');
+        return;
+    }
 
- 
- 
+    main();
+});
  
 
  
