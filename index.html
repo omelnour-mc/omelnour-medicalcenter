@@ -1205,7 +1205,7 @@ async function main() {
     const events = await fetchAllEvents(startDate, endDate);
 
     if (events.length === 0) {
-        alert('لا توجد مواعيد متاحة للعيادات المحددة في التاريخ المختار.');
+        window.alert('لا توجد مواعيد متاحة للعيادات المحددة في التاريخ المختار.');
         return;
     }
 
@@ -1873,7 +1873,7 @@ function toggleFilters() {
     const isAnyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
 
     if (!isAnyChecked) {
-        alert('الرجاء اختيار عيادة واحدة على الأقل قبل الضغط على "اليوم".');
+        window.alert('الرجاء اختيار عيادة واحدة على الأقل قبل الضغط على "اليوم".');
         return;
     }
 
@@ -1892,7 +1892,7 @@ function toggleFilters() {
     const isAnyChecked = Array.from(checkboxes).some(checkbox => checkbox.checked);
 
     if (!isAnyChecked) {
-        alert('الرجاء اختيار عيادة واحدة على الأقل قبل الضغط على "بحث".');
+        window.alert('الرجاء اختيار عيادة واحدة على الأقل قبل الضغط على "بحث".');
         return;
     }
 
@@ -1900,7 +1900,7 @@ function toggleFilters() {
     const endDateValue = document.getElementById('end-date-picker').value;
 
     if (!startDateValue || !endDateValue) {
-        alert('الرجاء اختيار تاريخ صحيح قبل الضغط على "بحث".');
+        window.alert('الرجاء اختيار تاريخ صحيح قبل الضغط على "بحث".');
         return;
     }
 
