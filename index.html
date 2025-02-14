@@ -13,12 +13,12 @@
     <meta property="og:image:height" content="512" />
     <meta property="og:title" content="مركز أم النور الطبى" />
     <meta property="og:description" content="مركز طبي شامل بفريق متخصص يوفر رعاية صحية متميزة" />
-
+    <title>جدول أطباء مركز أم النور الطبى</title> 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-
+<link href="https://fonts.googleapis.com/css2?family=Alexandria:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" integrity="sha384-KyZXEAg3QhqLMpG8r+8fhAXLRk7JhWOVe9b6Y6lPt4o6HavI1k3JtXVfjgAh6w8p" crossorigin="anonymous">
 <link rel="manifest" href="/omelnour-medicalcenter/manifest.json">
-    <title>جدول أطباء مركز أم النور الطبى</title> 
+
 
 
     <style> 
@@ -148,7 +148,7 @@ padding: 10px;
         } 
 
         #calendar-buttons { 
-
+font-family: 'Alexandria', sans-serif; 
             display: flex; 
             flex-wrap: wrap; 
          /*   justify-content: space-between;*/
@@ -159,7 +159,7 @@ padding: 10px;
 
 
         #calendar-buttons button { 
-
+font-family: 'Alexandria', sans-serif; 
             background-color: #4e74a0; 
 
             color: white; 
@@ -188,7 +188,7 @@ width:40%;
 
 #search-button {
   background-color: #9e2a2f;
-  font-weight: bold;
+  font-weight: ;
   border-radius: 6px;
 }   
  
@@ -234,7 +234,7 @@ label {
 margin: 5px; /* Adds space between label and input */  
 
 color:grey;  
-font-weight: bold;  
+font-weight: ;  
 
  
  
@@ -677,12 +677,12 @@ html {
  
 
 #print-button { 
-
+font-family: 'Alexandria', sans-serif; 
     background-color: black; 
 
     color: white; 
 
-    font-weight: bold; 
+   
 
     padding: 5px 20px; /* Add padding for better appearance */ 
 
@@ -1037,8 +1037,8 @@ padding: 0px 0px 20px 0px;
             <div id="filter-content">
                 <div id="checkboxes-container"></div>
                 <div class="date-navigation" id="calendar-buttons">
-                    <button style=" border: 1px solid darkblue; border-radius: 10px; font-weight: bold;font-size:0.8rem;" id="show-all">✅ تحديد الكل</button>
-                    <button style=" border: 1px solid darkblue; border-radius: 10px; font-weight: bold;font-size:0.8rem;" id="hide-all">❌ الغاء الكل</button>
+                    <button style=" border: 1px solid darkblue; border-radius: 10px;font-size:0.8rem;" id="show-all">✅ تحديد الكل</button>
+                    <button style=" border: 1px solid darkblue; border-radius: 10px; font-size:0.8rem;" id="hide-all">❌ الغاء الكل</button>
                 </div>
             </div>
         </div>
@@ -1429,7 +1429,7 @@ async function displayEvents(startDate, endDate) {
             // Strike through and "معتذر" text
             eventTime.innerHTML = `<span class="strike" style="color: #DC143C;">${formattedStartTime} - ${formattedEndTime}</span>`;
             const apologyText = document.createElement('span');
-            apologyText.innerHTML = "معتذر";
+            apologyText.innerHTML = " معتذر ";
             apologyText.style.color = '#DC143C';
             apologyText.style.marginRight = '10px';
             apologyText.style.backgroundColor = '#FFCCCC';
@@ -1439,7 +1439,7 @@ async function displayEvents(startDate, endDate) {
         } else if (eventTitle.includes('✔️')) {
             // "بديل" text
             const replacementText = document.createElement('span');
-            replacementText.innerHTML = "بديل";
+            replacementText.innerHTML = " بديل ";
             replacementText.style.color = '#228B22'; // Green color
             replacementText.style.marginRight = '10px';
             replacementText.style.backgroundColor = '#CCFFCC'; // Light green background
@@ -1449,7 +1449,7 @@ async function displayEvents(startDate, endDate) {
         } else if (eventTitle.includes('⚠️')) {
             // "استثنائى" text
             const exceptionalText = document.createElement('span');
-            exceptionalText.innerHTML = "استثناء";
+            exceptionalText.innerHTML = " استثناء ";
             exceptionalText.style.color = '#CC5500'; // Orange color
             exceptionalText.style.marginRight = '10px';
             exceptionalText.style.backgroundColor = '#FFE5CC'; // Light orange background
@@ -1459,7 +1459,7 @@ async function displayEvents(startDate, endDate) {
         } else if (eventTitle.includes('❗')) {
             // "حجز مسبق" text
             const reservationText = document.createElement('span');
-            reservationText.innerHTML = "حجز مسبق";
+            reservationText.innerHTML = " حجز مسبق ";
             reservationText.style.color = '#1E90FF'; // Blue color
             reservationText.style.marginRight = '10px';
             reservationText.style.backgroundColor = '#CCE5FF'; // Light blue background
