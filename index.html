@@ -30,7 +30,7 @@ body {
 font-family: 'Alexandria', sans-serif; 
 background-color: white; 
 text-align: center; 
-padding: 10px; 
+padding: 5px; 
 
 } 
 
@@ -91,7 +91,7 @@ padding: 10px;
   outline: none;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 700px) {
 
 
   #calendar-buttons {
@@ -103,7 +103,7 @@ padding: 10px;
 
         .no-events { 
 
-            font-size: 14px; 
+            font-size: 1.0rem; 
 
             color: darkslategray; 
 
@@ -381,6 +381,7 @@ font-weight: ;
     display: block; 
 
     margin: 10px 0 5px; 
+padding:2px;
 
     font-size: 14px; 
 
@@ -408,7 +409,7 @@ font-weight: ;
 
     margin-top: 5px; 
 
-    font-size: 14px; 
+    font-size: 1.0rem; 
 
 } 
 
@@ -979,7 +980,17 @@ padding: 0px 0px 20px 0px;
 
             </a>
     </div>
-
+<div style="display: flex; justify-content: center; align-items: center; width: 100%; padding: 2px;">
+    <iframe 
+        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3410.2962721543236!2d30.0059427!3d31.2678991!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14f5d077d4963845%3A0x7a0f4bfed5a5e129!2z2YXYs9iq2LTZgdmJINij2YUg2KfZhNmG2YjYsQ!5e0!3m2!1sen!2seg!4v1739529411844!5m2!1sen!2seg" 
+        width="80%" 
+        height="150" 
+        style="border:3px solid darkblue; border-radius: 15px; overflow: hidden;" 
+        allowfullscreen="" 
+        loading="lazy" 
+        referrerpolicy="no-referrer-when-downgrade">
+    </iframe>
+</div>
     <div class="schedule-container">
         <h1 class="banner-heading">مواعيد اطباء العيادات التخصصية</h1>
 
@@ -1002,7 +1013,7 @@ padding: 0px 0px 20px 0px;
 
         <input type="date" id="start-date-picker"> 
 
-        <label class="label-dates" style="font-weight: bold" for="start-date-picker">من</label> 
+        <label class="label-dates" style="font-weight: bold" for="start-date-picker"></label> 
 
     </div> 
 
@@ -1595,7 +1606,7 @@ function hideSpinner() {
 
             const endFormattedDate = endDate.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).replace(/،/g, ' 📅 '); 
 
-            todayDateElement.innerHTML = `<span style="color:black"> من </span>${startFormattedDate}<span style="color:black"> إلى </span>${endFormattedDate}`; 
+            todayDateElement.innerHTML = `<span style="color:black">  </span>${startFormattedDate}<br><span style="color:black"> إلى </span>${endFormattedDate}`; 
             todayDateElement.style.fontSize='0.9rem';
 
         } 
