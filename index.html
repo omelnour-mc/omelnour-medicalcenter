@@ -882,9 +882,10 @@ font-family: 'Alexandria', sans-serif;
 
 .fill-settings-container {
     background-color: #e2f5f5;
-    border: 1px solid #ddd;
+    border: 2px solid #ddd;
     border-radius: 8px;
 text-align: center;
+Padding:1px;
     max-width: 800px;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
@@ -983,17 +984,7 @@ padding: 0px 0px 20px 0px;
 
             </a>
     </div>
-<div style="display: flex; justify-content: center; align-items: center; width: 100%; padding: 2px;">
-    <iframe 
-        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3410.2962721543236!2d30.0059427!3d31.2678991!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14f5d077d4963845%3A0x7a0f4bfed5a5e129!2z2YXYs9iq2LTZgdmJINij2YUg2KfZhNmG2YjYsQ!5e0!3m2!1sen!2seg!4v1739529411844!5m2!1sen!2seg" 
-        width="80%" 
-        height="150" 
-        style="border:3px solid darkblue; border-radius: 15px; overflow: hidden;" 
-        allowfullscreen="" 
-        loading="lazy" 
-        referrerpolicy="no-referrer-when-downgrade">
-    </iframe>
-</div>
+
     <div class="schedule-container">
         <h1 class="banner-heading">مواعيد اطباء العيادات التخصصية</h1>
 
@@ -1016,7 +1007,7 @@ padding: 0px 0px 20px 0px;
 
         <input type="date" id="start-date-picker"> 
 
-        <label class="label-dates" style="font-weight: bold" for="start-date-picker"></label> 
+        <label class="label-dates" style="font-weight: bold" for="start-date-picker">من</label> 
 
     </div> 
 
@@ -1041,26 +1032,31 @@ padding: 0px 0px 20px 0px;
     <div id="loading-spinner" style="display: none;"> 
        <div class="spinner"></div> 
     </div> 
-    <div class="fill-settings-container">
-        <div id="clinic-filters" style="display: block;">
-            <span onclick="toggleFilters()" style="cursor: pointer; color:darkblue;font-weight:bold;"><span id="arrow-icon">▼</span>
-                اختار التخصص
-            </span>
+   <div class="fill-settings-container">
+    <div id="clinic-filters" style="display: block;">
+        <span onclick="toggleFilters()" 
+              style="cursor: pointer; color: darkblue; font-weight: bold; 
+                     width: 90%; display: block; text-align: right; padding: 5px; 
+                     background-color: #e2f5f5;">
+            <span id="arrow-icon">▼</span> اختار التخصص
+        </span>
 
-            <!-- New container for filter content -->
-            <div id="filter-content">
-                <div id="checkboxes-container"></div>
-                <div class="date-navigation" id="calendar-buttons">
-                    <button style=" border: 1px solid darkblue; border-radius: 10px;font-size:0.8rem;" id="show-all">✅ تحديد الكل</button>
-                    <button style=" border: 1px solid darkblue; border-radius: 10px; font-size:0.8rem;" id="hide-all">❌ الغاء الكل</button>
-                </div>
+        <!-- New container for filter content -->
+        <div id="filter-content">
+            <div id="checkboxes-container"></div>
+            <div class="date-navigation" id="calendar-buttons">
+                <button style="border: 1px solid darkblue; border-radius: 10px; font-size: 0.8rem;" id="show-all">✅ تحديد الكل</button>
+                <button style="border: 1px solid darkblue; border-radius: 10px; font-size: 0.8rem;" id="hide-all">❌ الغاء الكل</button>
             </div>
         </div>
     </div>
+</div>
 
 <div class="fill-settings-container">
     <div id="settings-filters" style="display: block;">
-        <div class="settings-header" onclick="toggleSettings()" style="cursor: pointer;">
+        <div class="settings-header" onclick="toggleSettings()" 
+             style="cursor: pointer; width: 90%; display: block; text-align: right; 
+                    padding: 5px; background-color: #e2f5f5;">
             <span id="arrow-icon_s">▼</span>
             <span style="color: rgb(124, 1, 1); font-weight: bold;">إعدادات الصفحة</span>
         </div>
@@ -1110,7 +1106,21 @@ padding: 0px 0px 20px 0px;
         </div>
     </div>
 </div>
+
     <div id="days-container"></div> 
+    
+    <div style="display: flex; justify-content: center; align-items: center; width: 100%; padding: 2px;">
+    <iframe 
+        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3410.2962721543236!2d30.0059427!3d31.2678991!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14f5d077d4963845%3A0x7a0f4bfed5a5e129!2z2YXYs9iq2LTZgdmJINij2YUg2KfZhNmG2YjYsQ!5e0!3m2!1sen!2seg!4v1739529411844!5m2!1sen!2seg" 
+        width="100%" 
+        height="100" 
+        style="border:2px solid darkblue; border-radius: 15px; overflow: hidden;" 
+        allowfullscreen="" 
+        loading="lazy" 
+        referrerpolicy="no-referrer-when-downgrade">
+    </iframe>
+</div>
+    
 <footer>
     &copy; 2025 Clinica i-Mind | Dr. Peter Ramsis
 </footer>
@@ -1214,7 +1224,7 @@ async function main() {
     startDate = validatedDates.startDate;
     endDate = validatedDates.endDate;
     updateDatePickers(startDate, endDate);
-    displaySelectedDateRange(startDate, endDate);
+    /* displaySelectedDateRange(startDate, endDate); */
 
     const events = await fetchAllEvents(startDate, endDate);
 
