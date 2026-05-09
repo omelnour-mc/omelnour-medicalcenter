@@ -1,0 +1,36 @@
+{
+  "entities": {
+    "admins": {
+      "title": "Admins",
+      "description": "System administrators with calendar management rights",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "auditLogs": {
+      "title": "Audit Logs",
+      "description": "Records of administrative actions",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "action": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "details": { "type": "string" }
+      },
+      "required": ["adminId", "action", "timestamp"]
+    }
+  },
+  "firestore": {
+    "admins/{adminId}": {
+      "schema": "admins",
+      "description": "Whitelisted administrator accounts"
+    },
+    "auditLogs/{logId}": {
+      "schema": "auditLogs",
+      "description": "History of admin changes"
+    }
+  }
+}
