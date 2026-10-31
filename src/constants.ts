@@ -34,4 +34,9 @@ export const BANNERS = [
   "https://dl.dropboxusercontent.com/scl/fi/bp52rsu18gwt3h4skxhub/mc_banner_2.jpg?rlkey=9t2q06v8u4h67npazv68kqm1d",
 ];
 
-export const CONTACT_PHONE = "+2035352893";
+export const CONTACT_LANDLINE = "03-5352893";
+export const CONTACT_MOBILE = "0122 598 6218";
+export const CONTACT_PHONE = "03-5352893"; // Primary landline for direct call
+export const CENTER_ADDRESS = "17 شارع أم النور – العصافرة قبلي";
+export const CENTER_NAME = "مركز أم النور الطبي – العصافرة قبلي";
+export const CENTER_NAME_SHORT = "مركز أم النور الطبي";

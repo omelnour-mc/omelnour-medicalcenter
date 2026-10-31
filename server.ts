@@ -12,9 +12,26 @@ const __dirname = path.dirname(__filename);
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   app.use(express.json());
+
+  // API Route to fetch user calendars for colors/metadata
+  app.get("/api/schedule", async (req, res) => {
+    const token = req.query.token as string;
+    if (!token) {
+      return res.status(400).json({ error: "Missing access token" });
+    }
+    try {
+      const response = await axios.get("https://www.googleapis.com/calendar/v3/users/me/calendarList", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      res.json(response.data.items || []);
+    } catch (err: any) {
+      console.error("Error fetching calendar list:", err.response?.data || err.message);
+      res.status(err.response?.status || 500).json({ error: "Failed to fetch calendar list" });
+    }
+  });
 
   // API Route for schedules
   app.post("/api/schedule", async (req, res) => {
@@ -68,7 +85,10 @@ async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -80,9 +100,26 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  const server = app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  const shutdown = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 }
+
+process.on("uncaughtException", (err) => {
+  console.error("Server uncaught exception:", err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Server unhandled rejection:", reason);
+});
 
 startServer();

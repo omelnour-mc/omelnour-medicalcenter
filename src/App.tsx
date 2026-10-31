@@ -5,36 +5,53 @@
 
 import { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import { format, addDays, subDays, startOfToday, parseISO, differenceInDays } from "date-fns";
+import { format, addDays, subDays, startOfToday, parseISO } from "date-fns";
 import { ar } from "date-fns/locale";
-import { Loader2, AlertCircle, Printer, Calendar as CalendarIcon, Filter, Shield } from "lucide-react";
+import { AlertCircle, Printer, Calendar as CalendarIcon, Filter, Settings as SettingsIcon } from "lucide-react";
 import Header from "./components/Header.tsx";
 import Hero from "./components/Hero.tsx";
-import FilterSidebar from "./components/FilterSidebar.tsx";
+import FilterSidebar, { FilterState } from "./components/FilterSidebar.tsx";
 import SettingsPanel from "./components/SettingsPanel.tsx";
 import ScheduleDisplay from "./components/ScheduleDisplay.tsx";
 import SearchModal from "./components/SearchModal.tsx";
+import SearchResultsView from "./components/SearchResultsView.tsx";
 import NavDrawer from "./components/NavDrawer.tsx";
 import AdminPanel from "./components/AdminPanel.tsx";
 import Footer from "./components/Footer.tsx";
+import ScrollToTop from "./components/ScrollToTop.tsx";
 import { CALENDARS } from "./constants.ts";
-import { CalendarResponse, AppSettings } from "./types.ts";
+import { CalendarResponse, AppSettings, CalendarInfo } from "./types.ts";
 import { auth, db } from "./lib/firebase.ts";
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 export default function App() {
+  const [page, setPage] = useState<"home" | "search">("home");
   const [viewMode, setViewMode] = useState<"today" | "week">("today");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [globalLoading, setGlobalLoading] = useState(false);
+  const [globalData, setGlobalData] = useState<CalendarResponse[]>([]);
   const [activeDate, setActiveDate] = useState(startOfToday());
   const [startDate, setStartDate] = useState(format(startOfToday(), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(startOfToday(), "yyyy-MM-dd"));
   const [selectedCalendars, setSelectedCalendars] = useState<string[]>(CALENDARS.map(c => c.id));
+  
+  // Advanced Filter State
+  const [filters, setFilters] = useState<FilterState>({
+    doctorQuery: "",
+    shift: "all",
+    selectedCalendars: CALENDARS.map(c => c.id),
+    activeOnly: false,
+    dayOfWeek: "all",
+  });
+
   const [loading, setLoading] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [scheduleData, setScheduleData] = useState<CalendarResponse[]>([]);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Toggleable on desktop
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [expandedSpecialties, setExpandedSpecialties] = useState<Record<string, boolean>>({});
   const [selectedDoctor, setSelectedDoctor] = useState<{ name: string; specialty: string } | null>(null);
@@ -43,6 +60,35 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
+  const [dynamicCalendars, setDynamicCalendars] = useState<CalendarInfo[]>(CALENDARS);
+
+  useEffect(() => {
+    const fetchColors = async () => {
+      if (!googleAccessToken) return;
+      try {
+        const response = await axios.get("/api/schedule?token=" + googleAccessToken);
+        const calendarList = response.data;
+        
+        const updated = CALENDARS.map(cal => {
+          const match = calendarList.find((c: any) => c.id === cal.id);
+          if (match) {
+            return {
+              ...cal,
+              backgroundColor: match.backgroundColor,
+              foregroundColor: match.foregroundColor,
+              color: match.backgroundColor
+            };
+          }
+          return cal;
+        });
+        setDynamicCalendars(updated);
+        setFilters(prev => ({ ...prev, selectedCalendars: updated.map(c => c.id) }));
+      } catch (err) {
+        console.error("Error fetching dynamic colors:", err);
+      }
+    };
+    fetchColors();
+  }, [googleAccessToken]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -59,12 +105,14 @@ export default function App() {
   }, []);
 
   const handleSelectDoctor = (name: string, specialty: string) => {
+    setPage("home");
     setViewMode("week");
     setSelectedDoctor({ name, specialty });
     setIsSearchModalOpen(false);
   };
 
   const handleSelectSpecialty = (specialty: string) => {
+    setPage("home");
     setViewMode("week");
     setExpandedSpecialties(prev => ({ ...prev, [specialty]: true }));
     setIsSearchModalOpen(false);
@@ -85,9 +133,6 @@ export default function App() {
     headlineWidth: 200,
   });
 
-  // Cache for API responses
-  const [cache, setCache] = useState<Record<string, { data: CalendarResponse[], timestamp: number }>>({});
-
   const getWeekRange = useCallback((targetDate?: Date) => {
     const baseDate = targetDate || startOfToday();
     const dayOfWeek = baseDate.getDay(); 
@@ -102,17 +147,55 @@ export default function App() {
     };
   }, []);
 
+  const [cache, setCache] = useState<Record<string, { data: CalendarResponse[], timestamp: number }>>({});
+
+  const fetchGlobalSearchData = useCallback(async () => {
+    if (globalData.length > 0) return; 
+    
+    setGlobalLoading(true);
+    const { start, end } = getWeekRange();
+    try {
+      const response = await axios.post("/api/schedule", {
+        calendarIds: CALENDARS.map(c => c.id),
+        timeMin: new Date(start).toISOString(),
+        timeMax: new Date(end + "T23:59:59Z").toISOString(),
+      });
+      setGlobalData(response.data);
+    } catch (err) {
+      console.error("Global search fetch error:", err);
+    } finally {
+      setGlobalLoading(false);
+    }
+  }, [getWeekRange, globalData.length]);
+
+  useEffect(() => {
+    if (isSearchModalOpen) {
+      fetchGlobalSearchData();
+    }
+  }, [isSearchModalOpen, fetchGlobalSearchData]);
+
+  const handleSearchSubmit = (query: string) => {
+    setSearchQuery(query);
+    setPage("search");
+    setIsSearchModalOpen(false);
+    fetchGlobalSearchData();
+  };
+
   const fetchSchedule = useCallback(async (startOverride?: string, endOverride?: string) => {
     const displayStart = startOverride || startDate;
     const displayEnd = endOverride || endDate;
 
-    if (selectedCalendars.length === 0) {
+    const targetCalendars = filters.selectedCalendars.length > 0 
+      ? filters.selectedCalendars 
+      : selectedCalendars;
+
+    if (targetCalendars.length === 0) {
       alert("يرجى اختيار عيادة واحدة على الأقل");
       return;
     }
 
     const { start: fetchStart, end: fetchEnd } = getWeekRange(parseISO(displayStart));
-    const cacheKey = `${fetchStart}_${fetchEnd}_${selectedCalendars.sort().join(",")}`;
+    const cacheKey = `${fetchStart}_${fetchEnd}_${targetCalendars.sort().join(",")}`;
     
     // Simple 60s cache
     const cached = cache[cacheKey];
@@ -126,7 +209,7 @@ export default function App() {
     setError(null);
     try {
       const response = await axios.post("/api/schedule", {
-        calendarIds: selectedCalendars,
+        calendarIds: targetCalendars,
         timeMin: new Date(fetchStart).toISOString(),
         timeMax: new Date(fetchEnd + "T23:59:59Z").toISOString(),
       });
@@ -140,12 +223,12 @@ export default function App() {
       console.error("Fetch error:", err);
       const serverMessage = err.response?.data?.error;
       const statusText = err.response?.statusText;
-      setError(serverMessage || `فشل تحميل المواعيد (${statusText || err.message}). يرجى المحاولة مرة أخرى.`);
+      setError(serverMessage || (err.response?.status === 404 ? "فشل الوصول إلى خدمة المواعيد (404)" : `عذراً، حدث خطأ أثناء تحميل البيانات (${statusText || err.message}). يرجى المحاولة لاحقاً.`));
     } finally {
       setLoading(false);
-      setIsSidebarOpen(false); // Close sidebar on mobile after search
+      setIsSidebarOpen(false);
     }
-  }, [selectedCalendars, startDate, endDate, getWeekRange, cache]);
+  }, [filters.selectedCalendars, selectedCalendars, startDate, endDate, getWeekRange, cache]);
 
   // Sync activeDate to startDate/endDate in today mode
   useEffect(() => {
@@ -175,12 +258,6 @@ export default function App() {
     setEndDate(end);
   };
 
-  const handleCalendarToggle = (id: string) => {
-    setSelectedCalendars((prev: string[]) => 
-      prev.includes(id) ? prev.filter((c: string) => c !== id) : [...prev, id]
-    );
-  };
-
   const handlePrint = () => {
     window.print();
   };
@@ -188,174 +265,221 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-bg-main" dir="rtl">
       <Header onSearchClick={() => setIsSearchModalOpen(true)} onMenuClick={() => setIsNavMenuOpen(true)} />
-      <Hero />
+      {page === "home" && <Hero />}
       
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-        {/* View Controls Toolbar */}
-        <div className="bg-white p-3 sm:p-5 rounded-2xl sm:rounded-[2rem] border border-slate/10 shadow-sm mb-8 sm:mb-12 print:hidden sticky top-4 z-[40]">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-4 sm:gap-6">
-            {/* Left: View Modes */}
-            <div className="flex p-1 bg-slate/5 rounded-xl sm:rounded-2xl w-full lg:w-auto">
-              <button
-                onClick={() => setViewMode("today")}
-                className={`flex-1 lg:px-8 py-2.5 sm:py-3.5 rounded-lg sm:rounded-xl font-black text-[13px] sm:text-sm transition-all ${viewMode === "today" ? "bg-white text-brand-blue shadow-lg shadow-brand-blue/5" : "text-slate/40 hover:text-slate"}`}
-              >
-                جدول اليوم
-              </button>
-              <button
-                onClick={() => setViewMode("week")}
-                className={`flex-1 lg:px-8 py-2.5 sm:py-3.5 rounded-lg sm:rounded-xl font-black text-[13px] sm:text-sm transition-all ${viewMode === "week" ? "bg-white text-brand-blue shadow-lg shadow-brand-blue/5" : "text-slate/40 hover:text-slate"}`}
-              >
-                جدول الأسبوع
-              </button>
-            </div>
-
-            {/* Middle: Date Info */}
-            <div className="flex items-center gap-3 sm:gap-4 text-navy">
-              <CalendarIcon className="text-brand-blue w-5 h-5 sm:w-6 sm:h-6" />
-              <div className="flex flex-col text-right">
-                <span className="font-black text-sm sm:text-lg leading-tight">
-                  {viewMode === "today" 
-                    ? format(activeDate, "eeee، d MMMM yyyy", { locale: ar })
-                    : "الجدول الأسبوعي الكامل"
-                  }
-                </span>
-                <span className="text-[9px] sm:text-[10px] font-bold text-slate/40 uppercase tracking-widest whitespace-nowrap">
-                  {viewMode === "today" ? "عرض المواعيد الحالية" : "عرض مواعيد العيادات التخصصية"}
-                </span>
+      <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-3 sm:py-6 gap-3 sm:gap-6 flex flex-col min-w-0">
+        {/* View Controls Toolbar Sticky Container */}
+        <div className="sticky top-14 sm:top-16 z-40 bg-bg-main/95 backdrop-blur-xs py-1.5 sm:py-0 transition-all">
+          <div className="bg-white p-2 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-4">
+              {/* View Modes Toggle */}
+              <div className="flex p-0.5 bg-slate-100 rounded-lg sm:rounded-xl shrink-0">
+                <button
+                  onClick={() => setViewMode("today")}
+                  className={`flex-1 sm:px-5 py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-xs transition-all cursor-pointer ${viewMode === "today" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  جدول اليوم
+                </button>
+                <button
+                  onClick={() => setViewMode("week")}
+                  className={`flex-1 sm:px-5 py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-xs transition-all cursor-pointer ${viewMode === "week" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  جدول الأسبوع
+                </button>
               </div>
-            </div>
 
-            {/* Right: Actions */}
-            <div className="flex items-center gap-2 sm:gap-3 w-full lg:w-auto">
-              <button 
-                onClick={handlePrint}
-                className="flex-1 lg:flex-none p-3 sm:p-4 bg-slate/5 text-slate hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl sm:rounded-2xl transition-all"
-                title="طباعة الجدول"
-              >
-                <Printer className="mx-auto w-[18px] h-[18px] sm:w-5 sm:h-5" />
-              </button>
-              <button 
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className={`flex-1 lg:flex-none px-4 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-black text-[13px] sm:text-sm flex items-center justify-center gap-2 sm:gap-3 transition-all ${isSidebarOpen ? 'bg-brand-blue text-white shadow-xl shadow-brand-blue/20' : 'bg-slate/5 text-slate hover:bg-slate/10'}`}
-              >
-                <Filter className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />
-                <span>خيارات الفلترة</span>
-              </button>
+              {/* Middle: Date Info */}
+              <div className="flex items-center justify-between sm:justify-start gap-2 text-navy min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CalendarIcon className="text-brand-blue w-3.5 h-3.5 shrink-0" />
+                  <span className="font-black text-xs sm:text-sm leading-tight truncate">
+                    {viewMode === "today" 
+                      ? format(activeDate, "eeee، d MMMM yyyy", { locale: ar })
+                      : "الجدول الأسبوعي الكامل"
+                    }
+                  </span>
+                </div>
+              </div>
+
+              {/* Actions Toolbar */}
+              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                <button 
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className={`p-2 rounded-lg transition-all cursor-pointer ${isSettingsOpen ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-600 hover:text-brand-blue'}`}
+                  title="إعدادات العرض"
+                  aria-label="إعدادات العرض"
+                >
+                  <SettingsIcon size={15} />
+                </button>
+                <button 
+                  onClick={handlePrint}
+                  className="p-2 bg-slate-100 text-slate-600 hover:text-brand-blue rounded-lg transition-all cursor-pointer"
+                  title="طباعة الجدول"
+                  aria-label="طباعة الجدول"
+                >
+                  <Printer size={15} />
+                </button>
+                <button 
+                  onClick={() => setIsSidebarOpen(true)}
+                  className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${isSidebarOpen ? 'bg-brand-blue text-white shadow-xs' : 'bg-brand-blue text-white hover:bg-brand-blue-dark shadow-2xs'}`}
+                >
+                  <Filter size={13} />
+                  <span>تصفية المواعيد</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div id="schedule" className="flex flex-col lg:flex-row gap-8 scroll-mt-32">
-          {/* Sidebar */}
-          <aside className={`
-            fixed inset-0 z-50 lg:relative lg:z-0 shrink-0 transition-all duration-300
-            ${isSidebarOpen ? "translate-x-0 w-full lg:w-80 opacity-100 visible" : "translate-x-full lg:translate-x-0 lg:w-0 lg:opacity-0 invisible lg:pointer-events-none"}
-          `}>
-            {/* Overlay for mobile */}
-            {isSidebarOpen && (
-              <div 
-                className="absolute inset-0 bg-navy/60 backdrop-blur-sm lg:hidden"
-                onClick={() => setIsSidebarOpen(false)}
+        <div id="schedule" className="w-full scroll-mt-24">
+          {page === "search" ? (
+            <SearchResultsView 
+              query={searchQuery}
+              onBack={() => setPage("home")}
+              onSelectDoctor={handleSelectDoctor}
+              onSelectSpecialty={handleSelectSpecialty}
+              allData={globalData}
+              loading={globalLoading}
+              calendars={dynamicCalendars}
+            />
+          ) : (
+            <div className="space-y-6 w-full">
+              <SettingsPanel 
+                isOpen={isSettingsOpen} 
+                onClose={() => setIsSettingsOpen(false)} 
+                settings={settings} 
+                onSettingsChange={setSettings} 
               />
-            )}
-            
-            <div className="relative h-full lg:h-auto bg-white lg:bg-transparent overflow-y-auto lg:overflow-visible">
-              <FilterSidebar
-                startDate={startDate}
-                endDate={endDate}
-                selectedCalendars={selectedCalendars}
-                onDateChange={handleDateChange}
-                onCalendarToggle={handleCalendarToggle}
-                onSelectAll={() => setSelectedCalendars(CALENDARS.map(c => c.id))}
-                onClearAll={() => setSelectedCalendars([])}
-                onSearch={fetchSchedule}
-                onToday={() => {
-                  setViewMode("today");
-                  setIsSidebarOpen(false);
-                }}
-                onClose={() => setIsSidebarOpen(false)}
-                loading={loading}
-              />
-            </div>
-          </aside>
 
-          {/* content Area */}
-          <div className="flex-1 space-y-8 overflow-hidden">
-            <SettingsPanel settings={settings} onSettingsChange={setSettings} />
+              {error && (
+                <div className="bg-brand-red-light border border-brand-red/20 text-brand-red p-5 rounded-2xl flex items-center gap-3 animate-in fade-in">
+                  <AlertCircle size={22} className="shrink-0" />
+                  <p className="font-bold text-xs sm:text-sm">{error}</p>
+                </div>
+              )}
 
-            {error && (
-              <div className="bg-brand-red-light border border-brand-red/20 text-brand-red p-6 rounded-3xl flex items-center gap-4 animate-in fade-in zoom-in-95">
-                <AlertCircle size={24} />
-                <p className="font-bold">{error}</p>
-              </div>
-            )}
-
-            <div className="relative">
-              {loading && (
-                <div className="space-y-6 animate-pulse">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="bg-white p-6 rounded-3xl border border-slate/5 h-24 flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-slate/10 rounded-2xl"></div>
-                        <div className="space-y-2">
-                          <div className="h-4 w-32 bg-slate/10 rounded-full"></div>
-                          <div className="h-3 w-20 bg-slate/10 rounded-full"></div>
+              <div className="relative">
+                {loading && (
+                  <div className="space-y-4 animate-pulse">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200/80 h-20 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 bg-slate-100 rounded-xl"></div>
+                          <div className="space-y-1.5">
+                            <div className="h-4 w-28 bg-slate-100 rounded-md"></div>
+                            <div className="h-3 w-16 bg-slate-100 rounded-md"></div>
+                          </div>
                         </div>
+                        <div className="h-8 w-24 bg-slate-100 rounded-xl"></div>
                       </div>
-                      <div className="h-10 w-40 bg-slate/10 rounded-2xl"></div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {!loading && scheduleData.length > 0 && (
-                <div className="animate-in fade-in duration-700">
-                  <ScheduleDisplay 
-                    data={scheduleData}
-                    startDate={startDate}
-                    endDate={endDate}
-                    settings={settings}
-                    viewMode={viewMode}
-                    onPrevDay={handlePrevDay}
-                    onNextDay={handleNextDay}
-                    expandedSpecialties={expandedSpecialties}
-                    setExpandedSpecialties={setExpandedSpecialties}
-                    selectedDoctor={selectedDoctor}
-                    setSelectedDoctor={setSelectedDoctor}
-                    isAdmin={isAdmin}
-                    googleAccessToken={googleAccessToken}
-                    onRefresh={() => fetchSchedule()}
-                  />
-                  
-                  {/* Action Buttons */}
-                  <div className="mt-8 flex justify-end gap-4 print:hidden">
-                    <button
-                      onClick={handlePrint}
-                      className="bg-brand-blue/10 text-brand-blue px-8 py-3 rounded-2xl font-black flex items-center gap-2 hover:bg-brand-blue hover:text-white transition-all"
-                    >
-                      <Printer size={18} />
-                      طباعة الجدول
-                    </button>
+                    ))}
                   </div>
-                </div>
-              )}
+                )}
 
-              {!loading && scheduleData.length === 0 && !error && (
-                <div className="text-center py-32 bg-white border border-gray-100 rounded-3xl card-shadow">
-                  <div className="max-w-xs mx-auto space-y-4">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto text-gray-300">
-                      <CalendarIcon size={32} />
+                {!loading && scheduleData.length > 0 && (
+                  <div className="animate-in fade-in duration-300">
+                    <ScheduleDisplay 
+                      data={scheduleData}
+                      startDate={startDate}
+                      endDate={endDate}
+                      settings={settings}
+                      viewMode={viewMode}
+                      onPrevDay={handlePrevDay}
+                      onNextDay={handleNextDay}
+                      expandedSpecialties={expandedSpecialties}
+                      setExpandedSpecialties={setExpandedSpecialties}
+                      selectedDoctor={selectedDoctor}
+                      setSelectedDoctor={setSelectedDoctor}
+                      isAdmin={isAdmin}
+                      googleAccessToken={googleAccessToken}
+                      onRefresh={() => fetchSchedule()}
+                      calendars={dynamicCalendars}
+                      filters={filters}
+                    />
+                    
+                    {/* Action Buttons */}
+                    <div className="mt-6 flex justify-end gap-3 print:hidden">
+                      <button
+                        onClick={handlePrint}
+                        className="bg-brand-blue/10 text-brand-blue px-6 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-brand-blue hover:text-white transition-all cursor-pointer"
+                      >
+                        <Printer size={16} />
+                        طباعة الجدول
+                      </button>
                     </div>
-                    <p className="text-gray-400 font-bold text-lg">لم يتم العثور على مواعيد للتخصصات المختارة.</p>
-                    <p className="text-gray-400 text-sm">حاول تغيير نطاق البحث أو إضافة تخصصات جديدة.</p>
                   </div>
-                </div>
-              )}
+                )}
+
+                {!loading && scheduleData.length === 0 && !error && (
+                  <div className="text-center py-20 bg-white border border-slate-200/80 rounded-2xl shadow-2xs">
+                    <div className="max-w-xs mx-auto space-y-3">
+                      <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-300">
+                        <CalendarIcon size={28} />
+                      </div>
+                      <p className="text-navy font-black text-sm">لم يتم العثور على مواعيد مع معايير التصفية الحالية.</p>
+                      <p className="text-slate-400 font-bold text-xs">جرب تغيير اسم الطبيب، الفترة الزمنية، أو اختيار جميع العيادات.</p>
+                      <button
+                        onClick={() => {
+                          setFilters({
+                            doctorQuery: "",
+                            shift: "all",
+                            selectedCalendars: dynamicCalendars.map(c => c.id),
+                            activeOnly: false,
+                            dayOfWeek: "all",
+                          });
+                          fetchSchedule();
+                        }}
+                        className="mt-2 bg-brand-blue text-white px-4 py-2 rounded-xl text-xs font-black hover:bg-brand-blue-dark transition-all cursor-pointer"
+                      >
+                        عرض كافة العيادات والمواعيد
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
+
+      {/* Modern Slide-Over Filter Drawer */}
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-[100] flex justify-end p-2 sm:p-4 bg-navy/60 backdrop-blur-xs transition-all" dir="rtl">
+          <div 
+            className="fixed inset-0" 
+            onClick={() => setIsSidebarOpen(false)}
+          />
+          <div className="relative w-full max-w-md h-full z-10 animate-in slide-in-from-left-4 duration-300">
+            <FilterSidebar
+              startDate={startDate}
+              endDate={endDate}
+              filters={filters}
+              onFilterChange={(newF) => setFilters(prev => ({ ...prev, ...newF }))}
+              onDateChange={handleDateChange}
+              onResetFilters={() => {
+                setFilters({
+                  doctorQuery: "",
+                  shift: "all",
+                  selectedCalendars: dynamicCalendars.map(c => c.id),
+                  activeOnly: false,
+                  dayOfWeek: "all",
+                });
+              }}
+              onApply={() => {
+                setSelectedCalendars(filters.selectedCalendars);
+                fetchSchedule();
+                setIsSidebarOpen(false);
+              }}
+              calendars={dynamicCalendars}
+              onClose={() => setIsSidebarOpen(false)}
+              loading={loading}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Floating Scroll To Top Button */}
+      <ScrollToTop />
 
       <Footer />
       
@@ -365,6 +489,9 @@ export default function App() {
         onOpenSearch={() => setIsSearchModalOpen(true)}
         onOpenFilters={() => setIsSidebarOpen(true)}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
+        calendars={dynamicCalendars}
+        onSelectSpecialty={handleSelectSpecialty}
+        onSelectViewMode={setViewMode}
       />
 
       <AdminPanel 
@@ -377,9 +504,12 @@ export default function App() {
       <SearchModal 
         isOpen={isSearchModalOpen} 
         onClose={() => setIsSearchModalOpen(false)} 
-        data={scheduleData}
+        data={globalData.length > 0 ? globalData : scheduleData}
         onSelectDoctor={handleSelectDoctor}
         onSelectSpecialty={handleSelectSpecialty}
+        onSearchSubmit={handleSearchSubmit}
+        loading={globalLoading}
+        calendars={dynamicCalendars}
       />
 
       {/* Print Styles */}

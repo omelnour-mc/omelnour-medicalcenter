@@ -7,6 +7,8 @@ export interface CalendarInfo {
   id: string;
   name: string;
   color: string;
+  backgroundColor?: string;
+  foregroundColor?: string;
 }
 
 export interface GoogleCalendarEvent {

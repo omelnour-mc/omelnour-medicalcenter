@@ -1,6 +1,36 @@
-# Om ElNour Medical Center Schedule v1.0.016
+# Om ElNour Medical Center Schedule v1.0.025
 
 A professional, modern React web application for displaying medical staff schedules from Google Calendars. Redesigned with a sleek brand-aligned UI.
+
+## Recent Updates (v1.0.025)
+- **Responsive Doctor Layout**: Implemented a responsive grid layout for the doctor's weekly schedule. On desktop, days are displayed side-by-side (columns), while on mobile they stack vertically.
+- **Typography Scaling**: Added a responsive typography system using CSS variables to gracefully shrink font sizes on smaller mobile screens for better density.
+- **Modal Sizing**: Expanded the maximum width of the doctor details modal to comfortably fit the new side-by-side weekly layout on wider screens.
+
+## Recent Updates (v1.0.024)
+- **Branding Refresh**: Replaced text-based placeholders with the official logo (`/logo.png`) across the header, navigation drawer, and footer.
+- **Arabic Translation**: Updated the clinic name and location to Arabic ("مركز ام النور الطبى - بالعصافرة قبلى") for better local accessibility.
+- **Metadata Optimization**: Updated SEO title and description to match the clinic's Arabic identity.
+- **Header Refinement**: Re-engineered the header for a more compact and professional look (h-56px mobile transition).
+
+## Recent Updates (v1.0.023)
+- **Settings Modal Integration**: Replaced the static "Schedule Display Customization" card with a modern, compact settings gear icon in the toolbar.
+- **Dynamic Calendar Colors**: Integrated real-time color synchronization with Google Calendar. Clinics now display their actual Google-assigned colors for branding consistency.
+- **Improved UI Density**: Refined the settings popover for desktop (popover) and mobile (bottom-sheet) with a 13-14px font baseline.
+- **Visual Branding**: Applied dynamic calendar colors to side borders, badges, and search results to ensure clinic identity is maintained everywhere.
+
+## Recent Updates (v1.0.021)
+- **Professional Typography Refinement**: Systematically reduced all font sizes across the app to create a more sophisticated, high-end medical interface.
+- **Card Styling Upgrade**: Unified card aesthetics with subtle transitions and precise spacing for better information density.
+- **Micro-UI Density**: Optimized the toolbar and hero sections for mobile, moving to an 11px/12px baseline for a modern, digital-first look.
+
+## Recent Updates (v1.0.020)
+- **Extreme Mobile Optimization**: Transformed the "Today" view into vertical cards on mobile for better readability.
+- **Sticky Filter Actions**: Search and filter buttons now stick to the bottom of the drawer on mobile for one-hand use.
+- **Ultra-Compact Typography**: Streamlined font sizes and padding across the app to maximize mobile screen real estate.
+- **Refined Interaction**: Improved touch targets and reduced vertical footprints of headers and toolbars.
+
+## Recent Updates (v1.0.018)
 
 ## Recent Updates (v1.0.016)
 - **UI Architecture Refinement**: Consolidated all controls into a single, high-performance Toolbar with better mobile density.
@@ -114,4 +144,4 @@ GOOGLE_CALENDAR_API_KEY=YOUR_ACTUAL_API_KEY
 - **Date Logic**: date-fns
 
 ---
-**Version**: 1.0.016
+**Version**: 1.0.025

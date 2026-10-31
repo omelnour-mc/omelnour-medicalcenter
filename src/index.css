@@ -15,14 +15,54 @@
   
   --color-navy: #0f172a;
   --color-slate: #64748b;
-  --color-bg-main: #f8fafc;
+  --color-bg-main: #edf2f7;
   --color-accent-sky: #e0f2fe;
 }
 
 @layer base {
+  :root {
+    --fs-body: 14px;
+    --fs-small: 12px;
+    --fs-h: 18px;
+  }
+  @media (max-width: 640px) {
+    :root {
+      --fs-body: 13px;
+      --fs-small: 11px;
+      --fs-h: 16px;
+    }
+  }
   body {
     @apply font-alexandria bg-bg-main text-slate antialiased;
+    font-size: var(--fs-body);
     direction: rtl;
+  }
+}
+
+.smallText { font-size: var(--fs-small); }
+.sectionTitle { font-size: var(--fs-h); }
+.dayCardTitle { font-size: 13px; font-weight: 700; }
+.slotItem { font-size: 12px; line-height: 1.25; }
+
+/* Doctor Schedule Days Grid */
+.doctorDaysGrid {
+  display: grid;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .doctorDaysGrid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (min-width: 641px) {
+  .doctorDaysGrid {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    align-items: start;
+  }
+}
+@media (min-width: 1024px) {
+  .doctorDaysGrid {
+    grid-template-columns: repeat(7, 1fr);
   }
 }
 
