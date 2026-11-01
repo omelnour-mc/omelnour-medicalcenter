@@ -8,8 +8,6 @@ import { X, Calendar, Clock, Stethoscope, Shield, Check, AlertTriangle, Loader2 
 import { CALENDARS } from "../constants.ts";
 import { stripStatusEmojis } from "../lib/utils.ts";
 import axios from "axios";
-import { db } from "../lib/firebase.ts";
-import { doc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import ConfirmationModal from "./ConfirmationModal.tsx";
 
 interface EditEventModalProps {
@@ -104,13 +102,6 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
             start: { dateTime: startDateTime },
             end: { dateTime: endDateTime }
           };
-
-          // Save to Firestore for cross-device sync
-          try {
-            await setDoc(doc(db, "custom_events", event.id), updatedEventData, { merge: true });
-          } catch (fbErr) {
-            console.warn("Firestore save custom event error:", fbErr);
-          }
 
           // 2. If Google Calendar Event & exists, update via backend proxy
           if (event.id && !event.id.startsWith("local_")) {
@@ -366,13 +357,6 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
                           });
                         }
                         
-                        // Delete from Firestore if applicable
-                        try {
-                          await deleteDoc(doc(db, "custom_events", event.id));
-                        } catch (e) {
-                          console.warn("Firestore delete warning:", e);
-                        }
-
                         onRefresh();
                         onClose();
                       } catch (err: any) {

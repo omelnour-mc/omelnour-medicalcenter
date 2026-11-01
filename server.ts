@@ -118,6 +118,13 @@ async function startServer() {
     }
   });
 
+  // API Route to verify admin
+  app.post("/api/check-admin", async (req, res) => {
+    const { email } = req.body;
+    const adminEmails = process.env.ADMIN_EMAILS ? process.env.ADMIN_EMAILS.split(",") : ["omelnour.medicalcenter@gmail.com"];
+    res.json({ isAdmin: adminEmails.includes(email) });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -10,9 +10,9 @@ import { ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, User, Clock, Calendar
 import { motion, AnimatePresence } from "motion/react";
 import { CalendarResponse, AppSettings } from "../types.ts";
 import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
+import { CalendarResponse, AppSettings } from "../types.ts";
+import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
 import axios from "axios";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../lib/firebase.ts";
 import { stripStatusEmojis, normalizeArabicQuery } from "../lib/utils.ts";
 import { FilterState } from "./FilterSidebar.tsx";
 import AppointmentTimeBadge from "./AppointmentTimeBadge.tsx";
@@ -116,13 +116,6 @@ export default function ScheduleDisplay({
             calendarId,
             summary: newSummary
           };
-
-          // Save to Firestore for permanent cross-device sync
-          try {
-            await setDoc(doc(db, "custom_events", eventId), updatedEventObj, { merge: true });
-          } catch (fbErr) {
-            console.warn("Firestore status update warning:", fbErr);
-          }
 
           // 3. Update Google Calendar if token available
           if (googleAccessToken) {

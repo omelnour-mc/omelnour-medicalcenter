@@ -6,8 +6,7 @@
 import { useState, useEffect } from "react";
 import { LogIn, LogOut, Shield, ShieldCheck, Building2, Check, X, AlertTriangle, Calendar, Plus, Trash2, Stethoscope, ArrowRight, Loader2, Search, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Pencil } from "lucide-react";
 import { signOut, onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc, collection, addDoc, getDocs, deleteDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db, googleSignIn, setCachedToken, getCachedToken } from "../lib/firebase.ts";
+import { auth, googleSignIn, setCachedToken, getCachedToken } from "../lib/firebase.ts";
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { format, addDays } from "date-fns";
@@ -127,21 +126,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
   };
 
   const fetchCustomEvents = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, "custom_events"));
-      const events: any[] = [];
-      querySnapshot.forEach((docSnap) => {
-        events.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      if (events.length > 0) {
-        setCustomEventsList(events);
-      } else {
-        setCustomEventsList(getDefaultCustomEvents());
-      }
-    } catch (err) {
-      console.warn("Firestore fetch custom events warning:", err);
       setCustomEventsList(getDefaultCustomEvents());
-    }
   };
 
   const getGroupedDoctors = () => {
@@ -219,10 +204,6 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
             }
           }
 
-          // Delete from Firestore
-          for (const id of eventIds) {
-            try { await deleteDoc(doc(db, "custom_events", id)); } catch (e) {}
-          }
 
           alert("تم حذف الطبيب وجدوله بنجاح");
           if (onRefresh) onRefresh();
@@ -325,17 +306,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
             end: { dateTime: endDateTime },
           };
 
-          try {
-            await addDoc(collection(db, "custom_events"), {
-              calendarId: selectedCalendarId,
-              summary,
-              start: { dateTime: startDateTime },
-              end: { dateTime: endDateTime },
-              createdAt: serverTimestamp()
-            });
-          } catch (fbErr) {
-            console.warn("Firestore addDoc warning:", fbErr);
-          }
+          // Firestore addDoc removed.
 
           setDoctorName("");
           alert("تم إضافة الموعد بنجاح وتحديث الجدول!");
@@ -359,11 +330,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
       type: "danger",
       onConfirm: async () => {
         try {
-          try {
-            await deleteDoc(doc(db, "custom_events", eventId));
-          } catch (fbErr) {
-            console.warn("Firestore delete warning:", fbErr);
-          }
+          // Firestore deleteDoc removed.
 
           await fetchCustomEvents();
           if (onRefresh) onRefresh();

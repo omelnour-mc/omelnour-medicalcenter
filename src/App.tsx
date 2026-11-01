@@ -22,9 +22,8 @@ import ScrollToTop from "./components/ScrollToTop.tsx";
 import DatePickerModal from "./components/DatePickerModal.tsx";
 import { CALENDARS } from "./constants.ts";
 import { CalendarResponse, AppSettings, CalendarInfo } from "./types.ts";
-import { auth, db, getCachedToken, setCachedToken } from "./lib/firebase.ts";
+import { auth, getCachedToken, setCachedToken } from "./lib/firebase.ts";
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
-import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { getDefaultCustomEvents } from "./lib/defaultData.ts";
 
 export default function App() {
@@ -97,13 +96,11 @@ export default function App() {
       setCurrentUser(user);
       if (user) {
         try {
-          const adminDoc = await getDoc(doc(db, "admins", user.uid));
-          setIsAdmin(adminDoc.exists());
+          const response = await axios.post("/api/check-admin", { email: user.email });
+          setIsAdmin(response.data.isAdmin);
         } catch (err) {
-          console.warn("Firestore admin check warning (offline):", err);
-          if (user.email === "omelnour.medicalcenter@gmail.com") {
-            setIsAdmin(true);
-          }
+          console.warn("Admin check failed:", err);
+          setIsAdmin(false);
         }
         // Try to recover token if we just signed in
         const token = getCachedToken();
@@ -174,36 +171,7 @@ export default function App() {
         timeMax: new Date(end + "T23:59:59Z").toISOString(),
       });
       const data = response.data;
-      try {
-        let customEvents: any[] = [];
-        try {
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 1500));
-          const fsPromise = getDocs(collection(db, "custom_events"));
-          const querySnapshot = await Promise.race([fsPromise, timeoutPromise]) as any;
-          querySnapshot.forEach((docSnap: any) => {
-            customEvents.push({ id: docSnap.id, ...docSnap.data() });
-          });
-        } catch (fsErr) {
-          console.warn("Firestore custom_events fetch warning or timeout:", fsErr);
-        }
 
-        const totalApiEvents = data.reduce((acc: number, item: any) => acc + (item.events ? item.events.length : 0), 0);
-        const mergedEvents = customEvents.length > 0 ? customEvents : (totalApiEvents === 0 ? getDefaultCustomEvents() : []);
-
-        mergedEvents.forEach((ev: any) => {
-          const targetCalRes = data.find((item: any) => item.calendarId === ev.calendarId);
-          if (targetCalRes) {
-            targetCalRes.events.push({
-              id: ev.id,
-              summary: ev.summary,
-              start: ev.start,
-              end: ev.end
-            });
-          }
-        });
-      } catch (e) {
-        console.error("Error merging custom events in global search:", e);
-      }
       setGlobalData(data);
     } catch (err) {
       console.error("Global search fetch error:", err);
@@ -259,46 +227,6 @@ export default function App() {
       });
       
       const apiData = response.data;
-      try {
-        let fsEvents: any[] = [];
-        try {
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 1500));
-          const fsPromise = getDocs(collection(db, "custom_events"));
-          const querySnapshot = await Promise.race([fsPromise, timeoutPromise]) as any;
-          querySnapshot.forEach((docSnap: any) => {
-            fsEvents.push({ id: docSnap.id, ...docSnap.data() });
-          });
-        } catch (fsErr) {
-          console.warn("Firestore custom_events fetch warning or timeout:", fsErr);
-        }
-
-        const totalApiEvents = apiData.reduce((acc: number, item: any) => acc + (item.events ? item.events.length : 0), 0);
-        const mergedCustomEvents = fsEvents.length > 0 ? fsEvents : (totalApiEvents === 0 ? getDefaultCustomEvents() : []);
-
-        mergedCustomEvents.forEach((ev: any) => {
-          const targetCalRes = apiData.find((item: any) => item.calendarId === ev.calendarId);
-          if (targetCalRes) {
-            const existingIndex = targetCalRes.events.findIndex((e: any) => e.id === ev.id);
-            if (existingIndex !== -1) {
-              targetCalRes.events[existingIndex] = {
-                ...targetCalRes.events[existingIndex],
-                summary: ev.summary || targetCalRes.events[existingIndex].summary,
-                start: ev.start || targetCalRes.events[existingIndex].start,
-                end: ev.end || targetCalRes.events[existingIndex].end,
-              };
-            } else {
-              targetCalRes.events.push({
-                id: ev.id,
-                summary: ev.summary,
-                start: ev.start,
-                end: ev.end
-              });
-            }
-          }
-        });
-      } catch (e) {
-        console.error("Error merging custom events:", e);
-      }
 
       setScheduleData(apiData);
       cacheRef.current[cacheKey] = { data: apiData, timestamp: Date.now() };
