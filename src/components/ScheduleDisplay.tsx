@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { format, eachDayOfInterval, parseISO, isSameDay, startOfToday, addDays, subDays } from "date-fns";
 import { ar } from "date-fns/locale";
-import { ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, User, Clock, Calendar as CalendarIcon, X, ChevronRight, ChevronLeft, Phone, Shield, Save, Loader2, AlertCircle, Stethoscope, Download, Share2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, User, Clock, Calendar as CalendarIcon, X, ChevronRight, ChevronLeft, Phone, Shield, Save, Loader2, AlertCircle, Stethoscope, Download, Share2, Pencil } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { CalendarResponse, AppSettings } from "../types.ts";
 import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
@@ -18,6 +18,8 @@ import { getAppointmentTimeInfo } from "../lib/timeUtils.ts";
 import CompactDoctorScheduleModal from "./CompactDoctorScheduleModal.tsx";
 import DailyClinicPosterModal from "./DailyClinicPosterModal.tsx";
 import SpecialtyIcon, { getCleanSpecialtyName, getVibrantSpecialtyColor, getSpecialtyHeaderBg } from "./SpecialtyIcon.tsx";
+import EditEventModal from "./EditEventModal.tsx";
+import ConfirmationModal from "./ConfirmationModal.tsx";
 
 interface ScheduleTableProps {
   data: CalendarResponse[];
@@ -27,6 +29,9 @@ interface ScheduleTableProps {
   viewMode: "today" | "week";
   onPrevDay?: () => void;
   onNextDay?: () => void;
+  onDateSelect?: (date: Date) => void;
+  onOpenDatePicker?: () => void;
+  activeDate?: Date;
   expandedSpecialties: Record<string, boolean>;
   setExpandedSpecialties: (val: Record<string, boolean> | ((prev: Record<string, boolean>) => Record<string, boolean>)) => void;
   selectedDoctor: { name: string; specialty: string } | null;
@@ -54,6 +59,9 @@ export default function ScheduleDisplay({
   viewMode, 
   onPrevDay, 
   onNextDay,
+  onDateSelect,
+  onOpenDatePicker,
+  activeDate,
   expandedSpecialties,
   setExpandedSpecialties,
   selectedDoctor,
@@ -67,46 +75,68 @@ export default function ScheduleDisplay({
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isDailyPosterOpen, setIsDailyPosterOpen] = useState(false);
+  const [editingEventInfo, setEditingEventInfo] = useState<{ event: any; calendarId: string } | null>(null);
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: "primary" | "danger";
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "primary",
+    onConfirm: () => {},
+  });
 
   const handleUpdateStatus = async (calendarId: string, eventId: string, currentSummary: string, statusIcon: string, statusLabel: string) => {
     if (!googleAccessToken) return;
     
-    setUpdatingEventId(eventId);
-    setUpdateError(null);
-    
-    try {
-      // Extract original name from summary (assuming Format: "Dr Name - Status")
-      const namePart = currentSummary.split("-")[0].trim();
-      const newSummary = `${namePart} - ${statusIcon} ${statusLabel}`;
+    setConfirmConfig({
+      isOpen: true,
+      title: "تأكيد تغيير الحالة",
+      message: `هل أنت متأكد من تغيير حالة الطبيب إلى (${statusLabel})؟`,
+      type: "primary",
+      onConfirm: async () => {
+        setUpdatingEventId(eventId);
+        setUpdateError(null);
+        
+        try {
+          const namePart = currentSummary.split("-")[0].trim();
+          const newSummary = `${namePart} - ${statusIcon} ${statusLabel}`;
 
-      await axios.patch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
-        { summary: newSummary },
-        {
-          headers: {
-            Authorization: `Bearer ${googleAccessToken}`,
-            'Content-Type': 'application/json'
-          }
+          await axios.patch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+            { summary: newSummary },
+            {
+              headers: {
+                Authorization: `Bearer ${googleAccessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          
+          if (onRefresh) onRefresh();
+        } catch (err: any) {
+          console.error("Error updating event:", err);
+          setUpdateError("فشل تحديث الحالة. تأكد من صلاحيات المشرف.");
+        } finally {
+          setUpdatingEventId(null);
         }
-      );
-      
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      console.error("Error updating event:", err);
-      setUpdateError("فشل تحديث الحالة. تأكد من صلاحيات المشرف.");
-    } finally {
-      setUpdatingEventId(null);
-    }
+      }
+    });
   };
 
   const renderAdminControls = (calendarId: string, eventId: string, currentSummary: string) => {
     if (!isAdmin || !googleAccessToken) return null;
 
     const statuses = [
-      { label: "متواجد", icon: "✅", color: "text-green-600 bg-green-50" },
-      { label: "اعتذر", icon: "❌", color: "text-red-600 bg-red-50" },
-      { label: "تأخير", icon: "⚠️", color: "text-amber-600 bg-amber-50" },
-      { label: "حالة طارئة", icon: "❗", color: "text-brand-red bg-brand-red/5" },
+      { label: "مواعيد عادية", icon: "🟢", color: "text-green-600 bg-green-50" },
+      { label: "معتذر", icon: "❌", color: "text-red-600 bg-red-50" },
+      { label: "استثناء", icon: "⚠️", color: "text-amber-600 bg-amber-50" },
+      { label: "بديل", icon: "✔️", color: "text-brand-blue bg-brand-blue/5" },
     ];
 
     return (
@@ -243,6 +273,7 @@ export default function ScheduleDisplay({
     if (textToSearch.includes("❌")) return { label: "معتذر", className: "text-brand-red border-brand-red/20 bg-brand-red/5" };
     if (textToSearch.includes("✔️")) return { label: "بديل", className: "text-brand-blue border-brand-blue/20 bg-brand-blue/5" };
     if (textToSearch.includes("⚠️")) return { label: "استثناء", className: "text-amber-600 border-amber-600/20 bg-amber-600/5" };
+    if (textToSearch.includes("🟢")) return { label: "مواعيد عادية", className: "text-green-600 border-green-600/20 bg-green-600/5" };
     if (textToSearch.includes("❗")) return { label: "حجز مسبق", className: "text-brand-blue-dark border-brand-blue-dark/20 bg-brand-blue-dark/5" };
     return { label: null, className: "" };
   };
@@ -294,20 +325,29 @@ export default function ScheduleDisplay({
         <div className="flex items-center justify-between bg-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl border border-slate-200/70 shadow-2xs">
           <button 
             onClick={onPrevDay}
-            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-slate-50 text-brand-blue border border-slate-200/80 rounded-lg font-black hover:bg-brand-blue hover:text-white transition-all text-xs active:scale-95"
+            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-slate-50 text-brand-blue border border-slate-200/80 rounded-lg font-black hover:bg-brand-blue hover:text-white transition-all text-xs active:scale-95 cursor-pointer"
             title="اليوم السابق"
           >
             <ChevronRight size={14} />
             <span>السابق</span>
           </button>
           
-          <h4 className="font-black text-brand-blue text-xs sm:text-sm text-center">
-            {format(days[0], "EEEE d MMMM yyyy", { locale: ar })}
-          </h4>
+          <div 
+            onClick={onOpenDatePicker}
+            className="flex items-center justify-center cursor-pointer group px-3.5 py-1.5 bg-slate-50 hover:bg-blue-50/70 border border-slate-200/80 rounded-xl transition-all shadow-2xs"
+            title="انقر لفتح التقويم والقفز لأي تاريخ"
+          >
+            <div className="flex items-center gap-1.5 text-brand-blue">
+              <CalendarIcon size={14} className="shrink-0" />
+              <h4 className="font-black text-xs sm:text-sm text-center">
+                {format(days[0], "EEEE d MMMM yyyy", { locale: ar })}
+              </h4>
+            </div>
+          </div>
 
           <button 
             onClick={onNextDay}
-            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-slate-50 text-brand-blue border border-slate-200/80 rounded-lg font-black hover:bg-brand-blue hover:text-white transition-all text-xs active:scale-95"
+            className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-slate-50 text-brand-blue border border-slate-200/80 rounded-lg font-black hover:bg-brand-blue hover:text-white transition-all text-xs active:scale-95 cursor-pointer"
             title="اليوم التالي"
           >
             <span>التالي</span>
@@ -368,29 +408,54 @@ export default function ScheduleDisplay({
                         className="p-2 rounded-lg hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
                       >
                         {/* Doctor Name with Clinic Specialty Emoji Icon */}
-                        <button 
-                          onClick={() => setSelectedDoctor({ name: cleanDoc, specialty: group.specialty })}
-                          className="flex items-center gap-2 text-right group/doc min-w-0"
-                          title={`عرض جدول مواعيد ${cleanDoc}`}
-                        >
-                          <SpecialtyIcon specialty={group.specialty} size="sm" showBackground className="shrink-0 group-hover/doc:scale-105 transition-transform" />
-                          <h4 className="font-extrabold text-navy text-[13px] sm:text-[14px] group-hover/doc:text-brand-blue cursor-pointer transition-colors leading-snug">
-                            {cleanDoc.startsWith("د.") || cleanDoc.startsWith("د/") ? cleanDoc : `د. ${cleanDoc}`}
-                          </h4>
-                        </button>
+                        <div className="flex items-center gap-3 text-right group/doc min-w-0">
+                          <button 
+                            onClick={() => setSelectedDoctor({ name: cleanDoc, specialty: group.specialty })}
+                            className="flex items-center gap-2 text-right group/doc min-w-0"
+                            title={`عرض جدول مواعيد ${cleanDoc}`}
+                          >
+                            <SpecialtyIcon specialty={group.specialty} size="sm" showBackground className="shrink-0 group-hover/doc:scale-105 transition-transform" />
+                            <h4 className="font-extrabold text-navy text-[13px] sm:text-[14px] group-hover/doc:text-brand-blue cursor-pointer transition-colors leading-snug">
+                              {cleanDoc.startsWith("د.") || cleanDoc.startsWith("د/") ? cleanDoc : `د. ${cleanDoc}`}
+                            </h4>
+                          </button>
+                          
+                          {isAdmin && (
+                            <button
+                              onClick={() => setSelectedDoctor({ name: cleanDoc, specialty: group.specialty })}
+                              className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition-all cursor-pointer border border-amber-200/50 active:scale-95 shrink-0 shadow-2xs"
+                              title="إدارة جدول هذا الطبيب"
+                            >
+                              <CalendarIcon size={12} />
+                            </button>
+                          )}
+                        </div>
 
                         {/* Appointments and Tags */}
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0 sm:justify-end pr-8 sm:pr-0">
-                          {docItem.events.map((event, eIdx) => {
+                              {docItem.events.map((event, eIdx) => {
                             const { label, className } = processEvent(event.summary || "");
                             const isCanceled = label === "معتذر";
                             return (
-                              <div key={eIdx} className="flex items-center gap-1">
+                              <div key={eIdx} className="flex items-center gap-1.5">
                                 {!isCanceled && <AppointmentTimeBadge event={event} size="sm" />}
                                 {label && (
                                   <span className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md border ${className}`}>
                                     {label}
                                   </span>
+                                )}
+                                {isAdmin && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const calObj = calendars.find(c => c.name === group.specialty || c.id === group.specialty);
+                                      setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
+                                    }}
+                                    className="w-8 h-8 flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white rounded-xl transition-all cursor-pointer shadow-md shadow-amber-200 active:scale-95 shrink-0"
+                                    title="تعديل هذا الموعد"
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
                                 )}
                               </div>
                             );
@@ -547,6 +612,21 @@ export default function ScheduleDisplay({
                                   <span className="text-[11px] font-bold text-slate-500 bg-slate-100/90 border border-slate-200/60 px-1.5 py-0.2 rounded-md shrink-0">
                                     ({totalActiveEvents})
                                   </span>
+                                  {isAdmin && (
+                                    <div className="flex items-center gap-1">
+                                       <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" title="وضع الإدارة نشط" />
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setSelectedDoctor({ name: cleanDocName, specialty: specialty });
+                                         }}
+                                         className="p-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50 rounded-md transition-all shadow-3xs"
+                                         title="تعديل جدول الطبيب"
+                                       >
+                                         <CalendarIcon size={11} />
+                                       </button>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
@@ -628,6 +708,19 @@ export default function ScheduleDisplay({
                                                           {label}
                                                         </span>
                                                       )}
+                                                       {isAdmin && (
+                                                        <button
+                                                          onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const calObj = calendars.find(c => c.name === specialty || c.id === specialty);
+                                                            setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
+                                                          }}
+                                                          className="w-7 h-7 flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all cursor-pointer shadow-md shadow-amber-100 active:scale-95"
+                                                          title="تعديل الموعد"
+                                                        >
+                                                          <Pencil size={13} />
+                                                        </button>
+                                                      )}
                                                     </div>
                                                   );
                                                 })
@@ -683,6 +776,20 @@ export default function ScheduleDisplay({
                                                       <span className={`text-[9.5px] px-2 py-0.5 rounded font-black ${className}`}>
                                                         {label}
                                                       </span>
+                                                    )}
+                                                    {isAdmin && (
+                                                      <button
+                                                        onClick={(e) => {
+                                                          e.stopPropagation();
+                                                          const calObj = calendars.find(c => c.name === specialty || c.id === specialty);
+                                                          setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
+                                                        }}
+                                                        className="mt-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-[9px] font-black transition-colors w-full flex items-center justify-center gap-1 cursor-pointer"
+                                                        title="تعديل الموعد"
+                                                      >
+                                                        <Pencil size={10} />
+                                                        <span>تعديل</span>
+                                                      </button>
                                                     )}
                                                   </div>
                                                 );
@@ -743,6 +850,10 @@ export default function ScheduleDisplay({
           isAdmin={isAdmin}
           googleAccessToken={googleAccessToken}
           onRefresh={onRefresh}
+          onEditEvent={(event) => {
+            const calObj = calendars.find(c => c.name === selectedDoctor.specialty || c.id === selectedDoctor.specialty);
+            setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
+          }}
         />
       )}
 
@@ -753,6 +864,28 @@ export default function ScheduleDisplay({
         selectedDate={days[0]}
         data={data}
         calendars={calendars}
+      />
+
+      {editingEventInfo && (
+        <EditEventModal
+          isOpen={true}
+          onClose={() => setEditingEventInfo(null)}
+          event={editingEventInfo.event}
+          calendarId={editingEventInfo.calendarId}
+          googleAccessToken={googleAccessToken}
+          onRefresh={() => {
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
+
+      <ConfirmationModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmConfig.onConfirm}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        type={confirmConfig.type}
       />
     </div>
   );

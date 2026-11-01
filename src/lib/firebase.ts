@@ -9,9 +9,34 @@ import { getFirestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
-// Add calendar scope for editing
+// Add calendar scopes
 googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
+googleProvider.addScope('https://www.googleapis.com/auth/calendar.readonly');
+
+// Token management
+let cachedAccessToken: string | null = null;
+
+export const setCachedToken = (token: string | null) => {
+  cachedAccessToken = token;
+};
+
+export const getCachedToken = () => cachedAccessToken;
+
+export const googleSignIn = async () => {
+  try {
+    const result = await import('firebase/auth').then(m => m.signInWithPopup(auth, googleProvider));
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      setCachedToken(credential.accessToken);
+      return { user: result.user, token: credential.accessToken };
+    }
+    return { user: result.user, token: null };
+  } catch (error) {
+    console.error("Sign-in error:", error);
+    throw error;
+  }
+};

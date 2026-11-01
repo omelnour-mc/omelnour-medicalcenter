@@ -33,6 +33,11 @@ export default function NavDrawer({
   
   const mainNavItems = [
     { 
+      label: "إدارة وتعديل المواعيد (كلمة السر)", 
+      icon: ShieldCheck, 
+      onClick: onOpenAdmin 
+    },
+    { 
       label: "الرئيسية", 
       icon: Home, 
       onClick: () => {

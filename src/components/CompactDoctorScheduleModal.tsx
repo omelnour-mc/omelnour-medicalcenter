@@ -20,7 +20,8 @@ import {
   Clock, 
   Building2, 
   ShieldCheck,
-  RotateCcw
+  RotateCcw,
+  Pencil
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toPng, toBlob } from "html-to-image";
@@ -46,6 +47,7 @@ interface CompactDoctorScheduleModalProps {
   isAdmin?: boolean;
   googleAccessToken?: string | null;
   onRefresh?: () => void;
+  onEditEvent?: (event: any) => void;
 }
 
 export default function CompactDoctorScheduleModal({
@@ -56,6 +58,7 @@ export default function CompactDoctorScheduleModal({
   isAdmin,
   googleAccessToken,
   onRefresh,
+  onEditEvent,
 }: CompactDoctorScheduleModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -507,12 +510,24 @@ export default function CompactDoctorScheduleModal({
                           const tag = getEventTag(event.summary || "");
                           const isCanceled = tag?.label === "معتذر";
                           return (
-                            <div key={evIdx} className="flex items-center gap-1">
+                            <div key={evIdx} className="flex items-center gap-1.5 p-1 bg-white/50 rounded-lg hover:bg-white transition-colors">
                               {!isCanceled && <AppointmentTimeBadge event={event} size="sm" />}
                               {tag && (
-                                <span className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md border ${tag.badgeClass}`}>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${tag.badgeClass}`}>
                                   {tag.label}
                                 </span>
+                              )}
+                              {isAdmin && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (onEditEvent) onEditEvent(event);
+                                  }}
+                                  className="w-7 h-7 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white rounded-lg transition-all cursor-pointer border border-amber-100"
+                                  title="تعديل هذا الموعد"
+                                >
+                                  <Pencil size={12} />
+                                </button>
                               )}
                             </div>
                           );

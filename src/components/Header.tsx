@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Phone, Menu, X, Search, ChevronRight } from "lucide-react";
+import { Phone, Menu, X, Search, ChevronRight, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { CONTACT_LANDLINE, CENTER_NAME_SHORT } from "../constants.ts";
@@ -11,9 +11,10 @@ import { CONTACT_LANDLINE, CENTER_NAME_SHORT } from "../constants.ts";
 interface HeaderProps {
   onSearchClick: () => void;
   onMenuClick: () => void;
+  onOpenAdmin: () => void;
 }
 
-export default function Header({ onSearchClick, onMenuClick }: HeaderProps) {
+export default function Header({ onSearchClick, onMenuClick, onOpenAdmin }: HeaderProps) {
   return (
     <header className="sticky top-0 z-[60] bg-white border-b border-slate-200 shadow-xs h-14 sm:h-16 flex items-center">
       <div className="max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8">
@@ -41,16 +42,25 @@ export default function Header({ onSearchClick, onMenuClick }: HeaderProps) {
           </div>
 
           {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
             <nav className="flex gap-6 text-[12px] font-black text-slate-600 uppercase tracking-widest">
               <a href="#" className="hover:text-brand-blue transition-colors">الرئيسية</a>
               <a href="#schedule" className="hover:text-brand-blue transition-colors">مواعيد الأطباء</a>
             </nav>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <button
+                onClick={onOpenAdmin}
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/80 rounded-xl text-xs font-black transition-all shadow-2xs cursor-pointer"
+                title="تسجيل دخول المشرف وتعديل المواعيد"
+              >
+                <ShieldCheck size={16} className="text-amber-700" />
+                <span>إدارة المواعيد</span>
+              </button>
+
               <button 
                 onClick={onSearchClick}
-                className="p-2 bg-slate-100 text-slate-700 hover:text-brand-blue hover:bg-brand-blue/10 rounded-xl transition-all"
+                className="p-2 bg-slate-100 text-slate-700 hover:text-brand-blue hover:bg-brand-blue/10 rounded-xl transition-all cursor-pointer"
                 title="بحث"
               >
                 <Search size={18} />
@@ -68,25 +78,25 @@ export default function Header({ onSearchClick, onMenuClick }: HeaderProps) {
 
           {/* Mobile Actions */}
           <div className="flex items-center gap-1.5 md:hidden">
+            <button
+              onClick={onOpenAdmin}
+              className="p-2 bg-amber-50 text-amber-800 rounded-lg transition-colors border border-amber-200/80 cursor-pointer"
+              title="إدارة المواعيد"
+              aria-label="إدارة المواعيد"
+            >
+              <ShieldCheck size={16} className="text-amber-700" />
+            </button>
             <button 
               onClick={onSearchClick}
-              className="p-2 bg-slate-100 text-slate-700 hover:text-brand-blue rounded-lg transition-colors"
+              className="p-2 bg-slate-100 text-slate-700 hover:text-brand-blue rounded-lg transition-colors cursor-pointer"
               title="بحث"
               aria-label="بحث"
             >
               <Search size={16} />
             </button>
-            <a 
-              href={`tel:${CONTACT_LANDLINE}`}
-              className="p-2 bg-red-50 text-brand-red rounded-lg transition-colors"
-              title="اتصل بنا"
-              aria-label="اتصل بنا"
-            >
-              <Phone size={16} />
-            </a>
             <button 
               onClick={onMenuClick}
-              className="p-2 bg-brand-blue text-white rounded-lg transition-colors"
+              className="p-2 bg-brand-blue text-white rounded-lg transition-colors cursor-pointer"
               title="القائمة"
               aria-label="القائمة"
             >
