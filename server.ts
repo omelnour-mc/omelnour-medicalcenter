@@ -84,7 +84,7 @@ async function startServer() {
 
   // API Route for updating events via Service Account
   app.patch("/api/update-event", async (req, res) => {
-    const { calendarId, eventId, summary, start, end } = req.body;
+    const { calendarId, eventId, summary, start, end, editScope } = req.body;
     
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
       return res.status(500).json({ error: "Service account credentials not configured" });

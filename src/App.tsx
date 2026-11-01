@@ -159,16 +159,21 @@ export default function App() {
 
   const cacheRef = useRef<Record<string, { data: CalendarResponse[]; timestamp: number }>>({});
 
-  const fetchGlobalSearchData = useCallback(async () => {
-    if (globalData.length > 0) return; 
+  const fetchGlobalSearchData = useCallback(async (force = false) => {
+    if (!force && globalData.length > 0) return; 
     
     setGlobalLoading(true);
-    const { start, end } = getWeekRange();
+    const today = startOfToday();
+    const dayOfWeek = today.getDay();
+    const diffToSat = (dayOfWeek + 1) % 7;
+    const saturday = addDays(today, -diffToSat);
+    const twoWeeksLater = addDays(saturday, 13);
+    
     try {
       const response = await axios.post("/api/schedule", {
         calendarIds: CALENDARS.map(c => c.id),
-        timeMin: new Date(start).toISOString(),
-        timeMax: new Date(end + "T23:59:59Z").toISOString(),
+        timeMin: saturday.toISOString(),
+        timeMax: new Date(format(twoWeeksLater, "yyyy-MM-dd") + "T23:59:59Z").toISOString(),
       });
       const data = response.data;
 
@@ -178,13 +183,13 @@ export default function App() {
     } finally {
       setGlobalLoading(false);
     }
-  }, [getWeekRange, globalData.length]);
+  }, [globalData.length]);
 
   useEffect(() => {
-    if (isSearchModalOpen) {
+    if (isSearchModalOpen || page === "admin") {
       fetchGlobalSearchData();
     }
-  }, [isSearchModalOpen, fetchGlobalSearchData]);
+  }, [isSearchModalOpen, page, fetchGlobalSearchData]);
 
   const handleSearchSubmit = (query: string) => {
     setSearchQuery(query);
@@ -303,10 +308,13 @@ export default function App() {
       <main className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 py-3 sm:py-6 gap-3 sm:gap-6 flex flex-col min-w-0">
         {page === "admin" ? (
           <AdminPanel 
-            onRefresh={() => fetchSchedule()}
+            onRefresh={() => {
+              fetchSchedule();
+              fetchGlobalSearchData(true);
+            }}
             onTokenReceived={setGoogleAccessToken}
             onBackToHome={() => setPage("home")}
-            scheduleData={scheduleData}
+            scheduleData={globalData.length > 0 ? globalData : scheduleData}
             calendars={dynamicCalendars}
           />
         ) : page === "search" ? (

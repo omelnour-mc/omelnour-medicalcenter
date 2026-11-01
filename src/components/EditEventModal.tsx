@@ -60,6 +60,17 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
 
   if (!isOpen || !event) return null;
 
+  const getScopeDescription = (scope: "single" | "upcoming" | "all") => {
+    switch (scope) {
+      case "single":
+        return "هذا الموعد فقط (This event)";
+      case "upcoming":
+        return "هذا الموعد وكافة المواعيد التالية (This and following events)";
+      case "all":
+        return "كافة مواعيد السلسلة المتكررة (All events)";
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!doctorName.trim()) {
@@ -67,10 +78,12 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
       return;
     }
 
+    const scopeText = getScopeDescription(editScope);
+
     setConfirmConfig({
       isOpen: true,
       title: "تأكيد حفظ التعديلات",
-      message: `هل أنت متأكد من حفظ التعديلات الجديدة للطبيب ${doctorName}؟`,
+      message: `هل أنت متأكد من حفظ التعديلات للطبيب "${doctorName}"؟\n\nنطاق التطبيق المحدد: [ ${scopeText} ]`,
       type: "primary",
       onConfirm: async () => {
         setSaving(true);
@@ -118,7 +131,7 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
               };
 
               // Add timeout to axios call
-              await axios.patch("/api/update-event", patchBody, { timeout: 10000 });
+              await axios.patch("/api/update-event", { ...patchBody, editScope }, { timeout: 10000 });
 
             } catch (apiErr: any) {
               console.error("Server-side calendar update error:", apiErr);
@@ -295,32 +308,68 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
           </div>
 
           {/* Google Calendar Recurrence Scope Options */}
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-            <div className="flex items-center gap-2 text-brand-blue">
-              <Calendar size={16} />
-              <label className="text-xs font-black">نطاق تطبيق التعديلات (Scope)</label>
+          <div className="bg-amber-50/50 p-4 rounded-2xl border-2 border-amber-200/80 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-brand-blue">
+                <Calendar size={18} className="text-amber-600" />
+                <label className="text-xs font-black text-navy">نطاق تطبيق العملية (Scope)</label>
+              </div>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300">
+                تعديل / حذف
+              </span>
             </div>
+            <p className="text-[11px] text-slate-600 font-bold leading-relaxed">
+              اختر هل يسري التعديل أو الحذف على هذا اليوم فقط أم على المواعيد التالية أم السلسلة بالكامل:
+            </p>
             <div className="space-y-2">
               {[
-                { id: "single", label: "هذا الموعد فقط (This event only)", desc: "تعديل مثيل واحد فقط من المواعيد المتكررة" },
-                { id: "upcoming", label: "هذا الموعد وكافة المواعيد القادمة (Upcoming)", desc: "تعديل المواعيد من هذا التاريخ فصاعداً" },
-                { id: "all", label: "كافة مواعيد السلسلة (All events)", desc: "تعديل السلسلة الكاملة (الماضي والمستقبل)" },
+                { 
+                  id: "single", 
+                  title: "هذا الموعد فقط", 
+                  tag: "This event only", 
+                  desc: "تعديل أو حذف موعد هذا اليوم المحدد فقط دون المساس بباقي مواعيد الطبيب في الأسابيع الأخرى." 
+                },
+                { 
+                  id: "upcoming", 
+                  title: "هذا الموعد والمواعيد التالية", 
+                  tag: "This & upcoming events", 
+                  desc: "تطبيق التعديل أو الحذف على موعد هذا اليوم وكافة المواعيد القادمة في المستقبل." 
+                },
+                { 
+                  id: "all", 
+                  title: "كافة مواعيد السلسلة", 
+                  tag: "All events in series", 
+                  desc: "تعديل أو حذف جميع المواعيد المتكررة للطبيب في التقويم (الماضية والمستقبلية)." 
+                },
               ].map(scope => (
                 <label 
                   key={scope.id}
-                  className={`flex flex-col gap-1 p-3 rounded-xl border cursor-pointer transition-all ${editScope === scope.id ? "bg-blue-50/80 border-brand-blue text-brand-blue shadow-sm" : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100"}`}
+                  className={`flex flex-col gap-1 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    editScope === scope.id 
+                      ? "bg-white border-brand-blue text-navy shadow-md ring-2 ring-brand-blue/10" 
+                      : "bg-white/80 border-slate-200 text-slate-700 hover:border-slate-300"
+                  }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="editScope"
-                      checked={editScope === scope.id}
-                      onChange={() => setEditScope(scope.id as any)}
-                      className="accent-brand-blue w-3.5 h-3.5"
-                    />
-                    <span className="text-xs font-black">{scope.label}</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="editScope"
+                        checked={editScope === scope.id}
+                        onChange={() => setEditScope(scope.id as any)}
+                        className="accent-brand-blue w-4 h-4 cursor-pointer"
+                      />
+                      <span className="text-xs font-black text-navy">{scope.title}</span>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                      {scope.tag}
+                    </span>
                   </div>
-                  <p className={`text-[10px] pr-5.5 font-bold ${editScope === scope.id ? "text-brand-blue/70" : "text-slate-400"}`}>{scope.desc}</p>
+                  <p className={`text-[10.5px] pr-6 font-medium leading-normal ${
+                    editScope === scope.id ? "text-brand-blue" : "text-slate-500"
+                  }`}>
+                    {scope.desc}
+                  </p>
                 </label>
               ))}
             </div>
@@ -347,26 +396,33 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
                 type="button"
                 disabled={saving}
                 onClick={() => {
+                  const scopeText = getScopeDescription(editScope);
                   setConfirmConfig({
                     isOpen: true,
                     title: "تأكيد حذف الموعد",
-                    message: "هل أنت متأكد من حذف هذا الموعد نهائياً؟ لا يمكن التراجع عن هذه العملية.",
+                    message: `هل أنت متأكد من حذف الموعد للطبيب "${doctorName}"؟\n\nنطاق الحذف المحدد: [ ${scopeText} ]\n\nتنبيه: لا يمكن التراجع عن هذه العملية.`,
                     type: "danger",
                     onConfirm: async () => {
                       setSaving(true);
                       try {
-                        // Delete from Google if applicable
+                        const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;
+
+                        // Delete from Google if user token exists
                         if (googleAccessToken && event.id && !event.id.startsWith("local_")) {
-                          const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;
                           await axios.delete(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(selectedCalendarId)}/events/${targetEventId}`, {
                             headers: { Authorization: `Bearer ${googleAccessToken}` }
+                          });
+                        } else if (event.id && !event.id.startsWith("local_")) {
+                          // Or delete via backend service account
+                          await axios.delete("/api/delete-event", {
+                            data: { calendarId: selectedCalendarId, eventId: targetEventId, scope: editScope }
                           });
                         }
                         
                         onRefresh();
                         onClose();
                       } catch (err: any) {
-                        setError("فشل الحذف: " + err.message);
+                        setError("فشل الحذف: " + (err.response?.data?.error || err.message));
                       } finally {
                         setSaving(false);
                       }

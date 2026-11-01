@@ -10,8 +10,6 @@ import { ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, User, Clock, Calendar
 import { motion, AnimatePresence } from "motion/react";
 import { CalendarResponse, AppSettings } from "../types.ts";
 import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
-import { CalendarResponse, AppSettings } from "../types.ts";
-import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
 import axios from "axios";
 import { stripStatusEmojis, normalizeArabicQuery } from "../lib/utils.ts";
 import { FilterState } from "./FilterSidebar.tsx";
@@ -77,6 +75,7 @@ export default function ScheduleDisplay({
   filters,
   onViewModeChange
 }: ScheduleTableProps) {
+  const canEdit = Boolean(isAdmin || googleAccessToken);
   const [weeklySubView, setWeeklySubView] = useState<"cards" | "timeline">("cards");
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -334,7 +333,8 @@ export default function ScheduleDisplay({
     if (days.length === 0) return [];
     
     const todayKey = format(days[0], "yyyy-MM-dd");
-    
+
+    // Populate ONLY with clinics and doctors that have actual events (active or apologized) registered for today
     Object.entries(groupedData).forEach(([specialty, { color, doctors }]) => {
       Object.entries(doctors).forEach(([doctor, daySchedules]) => {
         const events = daySchedules[todayKey] || [];
@@ -347,6 +347,7 @@ export default function ScheduleDisplay({
       });
     });
 
+    // Only clinics that have doctors with registered appointments today will appear
     const list = Object.values(map);
     list.sort((a, b) => a.specialty.localeCompare(b.specialty, "ar"));
     return list;
@@ -478,20 +479,20 @@ export default function ScheduleDisplay({
                             </h4>
                           </button>
                           
-                          {isAdmin && (
+                          {canEdit && (
                             <button
                               onClick={() => setSelectedDoctor({ name: cleanDoc, specialty: group.specialty })}
                               className="p-1.5 bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition-all cursor-pointer border border-amber-200/50 active:scale-95 shrink-0 shadow-2xs"
                               title="إدارة جدول هذا الطبيب"
                             >
-                              <CalendarIcon size={12} />
+                              <Pencil size={12} />
                             </button>
                           )}
                         </div>
 
                         {/* Appointments and Tags */}
                         <div className="flex flex-wrap items-center gap-1.5 min-w-0 sm:justify-end pr-8 sm:pr-0">
-                              {docItem.events.map((event, eIdx) => {
+                          {docItem.events.map((event, eIdx) => {
                             const { label, className } = processEvent(event.summary || "");
                             const isCanceled = label === "معتذر";
                             return (
@@ -502,7 +503,7 @@ export default function ScheduleDisplay({
                                     {label}
                                   </span>
                                 )}
-                                {isAdmin && (
+                                {canEdit && (
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
@@ -663,7 +664,7 @@ export default function ScheduleDisplay({
                                   <span className="text-[11px] font-bold text-slate-500 bg-slate-100/90 border border-slate-200/60 px-1.5 py-0.2 rounded-md shrink-0">
                                     ({totalActiveEvents})
                                   </span>
-                                  {isAdmin && (
+                                  {canEdit && (
                                     <div className="flex items-center gap-1">
                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" title="وضع الإدارة نشط" />
                                        <button
@@ -671,10 +672,10 @@ export default function ScheduleDisplay({
                                            e.stopPropagation();
                                            setSelectedDoctor({ name: cleanDocName, specialty: specialty });
                                          }}
-                                         className="p-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50 rounded-md transition-all shadow-3xs"
+                                         className="p-1 bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200/50 rounded-md transition-all shadow-3xs cursor-pointer"
                                          title="تعديل جدول الطبيب"
                                        >
-                                         <CalendarIcon size={11} />
+                                         <Pencil size={11} />
                                        </button>
                                     </div>
                                   )}
@@ -754,7 +755,7 @@ export default function ScheduleDisplay({
                                                               {label}
                                                             </span>
                                                           )}
-                                                          {isAdmin && (
+                                                          {canEdit && (
                                                             <button
                                                               onClick={(e) => {
                                                                 e.stopPropagation();
@@ -852,7 +853,7 @@ export default function ScheduleDisplay({
           calendars={calendars}
           filters={filters}
           onSelectDoctor={(doc) => setSelectedDoctor(doc)}
-          isAdmin={isAdmin}
+          isAdmin={canEdit}
           onEditEvent={(event, calendarId) => setEditingEventInfo({ event, calendarId })}
           settings={settings}
         />
@@ -867,7 +868,7 @@ export default function ScheduleDisplay({
           onClose={() => setSelectedDoctor(null)}
           initialData={data}
           calendars={calendars}
-          isAdmin={isAdmin}
+          isAdmin={canEdit}
           googleAccessToken={googleAccessToken}
           onRefresh={onRefresh}
           onEditEvent={(event) => {
