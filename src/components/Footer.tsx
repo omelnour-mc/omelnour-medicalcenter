@@ -204,7 +204,7 @@ export default function Footer() {
             <span>Developed by: Dr. Peter Ramsis</span>
             <span className="w-1 h-1 rounded-full bg-slate-300"></span>
             <span className="text-brand-red font-bold bg-brand-red/10 px-2.5 py-0.5 rounded-full text-[10px]">
-              V1.0.027
+              V1.0.028
             </span>
           </div>
         </div>

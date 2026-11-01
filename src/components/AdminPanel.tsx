@@ -73,32 +73,18 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
   const [untilDate, setUntilDate] = useState(format(addDays(new Date(), 90), "yyyy-MM-dd"));
 
   useEffect(() => {
-    const savedPasswordAdmin = sessionStorage.getItem("omelnour_password_admin");
-    if (savedPasswordAdmin === "true") {
-      setIsAdmin(true);
-    }
-
+    // Ensure we do NOT auto-login, always require re-authentication for security.
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
         try {
-          const adminDoc = await getDoc(doc(db, "admins", u.uid));
-          if (u.email === "omelnour.medicalcenter@gmail.com" && !adminDoc.exists()) {
-            await setDoc(doc(db, "admins", u.uid), {
-              email: u.email,
-              createdAt: serverTimestamp()
-            });
-            setIsAdmin(true);
-          } else if (adminDoc.exists()) {
-            setIsAdmin(true);
-          }
+          const response = await axios.post("/api/check-admin", { email: u.email });
+          setIsAdmin(response.data.isAdmin);
         } catch (e) {
-          console.warn("Admin check offline warning:", e);
-          if (u.email === "omelnour.medicalcenter@gmail.com") {
-            setIsAdmin(true);
-          }
+          console.warn("Admin check warning:", e);
+          setIsAdmin(false);
         }
-      } else if (!savedPasswordAdmin) {
+      } else {
         setIsAdmin(false);
       }
       setLoading(false);
@@ -221,7 +207,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
     
     if (passwordInput === secretPassword) {
       setIsAdmin(true);
-      sessionStorage.setItem("omelnour_password_admin", "true");
+      // sessionStorage.setItem("omelnour_password_admin", "true"); // Disabled for security
       setActiveTab("manage"); 
       
       const token = getCachedToken();
@@ -235,7 +221,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
     signOut(auth);
     setIsAdmin(false);
     setCachedToken(null);
-    sessionStorage.removeItem("omelnour_password_admin");
+    // sessionStorage.removeItem("omelnour_password_admin");
   };
 
   const handleAddDoctorAppointment = async (e: React.FormEvent) => {
@@ -436,6 +422,12 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
                     <p className="font-black text-navy text-xs sm:text-base truncate">
                       {user ? user.displayName || user.email : "مشرف النظام (كلمة المرور)"}
                     </p>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={`w-2 h-2 rounded-full ${isAdmin ? 'bg-green-500' : 'bg-red-500'}`} />
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                        {isAdmin ? "المشرف متصل" : "غير مصرح"}
+                      </p>
+                    </div>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className={`w-1.5 h-1.5 rounded-full ${getCachedToken() ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
                       <p className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
