@@ -52,6 +52,7 @@ export default function SearchModal({
       specialty?: string; 
       color?: string;
       todayEvent?: any;
+      todayApologized?: boolean;
     }> = [];
 
     const today = startOfToday();
@@ -72,7 +73,7 @@ export default function SearchModal({
     // 2) Doctors index from ALL events across ALL calendars
     const doctorIndex = new Map<
       string,
-      { displayName: string; specialty: string; color?: string; todayEvent?: any }
+      { displayName: string; specialty: string; color?: string; todayEvent?: any; todayApologized?: boolean }
     >();
 
     for (const calRes of data || []) {
@@ -94,7 +95,7 @@ export default function SearchModal({
         const dateStr = event.start?.dateTime || event.start?.date;
         const isToday = dateStr ? isSameDay(parseISO(dateStr), today) : false;
         const summaryLower = summary.toLowerCase();
-        const isActive = !summaryLower.includes("❌") && !summaryLower.includes("معتذر") && !summaryLower.includes("اعتذر");
+        const isApologized = summaryLower.includes("معتذر") || summaryLower.includes("اعتذر") || summaryLower.includes("عتذر") || summaryLower.includes("❌");
 
         const existing = doctorIndex.get(key);
         if (!existing) {
@@ -102,11 +103,13 @@ export default function SearchModal({
             displayName,
             specialty: specialtyName,
             color,
-            todayEvent: isToday && isActive ? event : undefined,
+            todayEvent: isToday ? event : undefined,
+            todayApologized: isToday ? isApologized : false,
           });
         } else {
-          if (!existing.todayEvent && isToday && isActive) {
+          if (!existing.todayEvent && isToday) {
             existing.todayEvent = event;
+            existing.todayApologized = isApologized;
           }
         }
       }
@@ -121,6 +124,7 @@ export default function SearchModal({
           specialty: value.specialty,
           color: value.color,
           todayEvent: value.todayEvent,
+          todayApologized: value.todayApologized,
         });
       }
     }
@@ -153,12 +157,21 @@ export default function SearchModal({
                   autoFocus
                   type="text"
                   placeholder="ابحث عن اسم طبيب أو عيادة..."
-                  className="w-full bg-white pr-10 pl-16 py-2 sm:py-2.5 rounded-lg text-[13px] sm:text-[14px] font-black text-brand-blue placeholder:text-slate/20 outline-none ring-1 ring-slate/5 focus:ring-brand-blue/20 transition-all shadow-sm"
+                  className="w-full bg-white pr-10 pl-24 py-2 sm:py-2.5 rounded-lg text-[13px] sm:text-[14px] font-black text-brand-blue placeholder:text-slate/20 outline-none ring-1 ring-slate/5 focus:ring-brand-blue/20 transition-all shadow-sm"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   onKeyDown={handleKeyDown}
                 />
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  {searchTerm.length > 0 && (
+                    <button 
+                      onClick={() => setSearchTerm("")}
+                      className="p-1 text-slate-400 hover:text-brand-red transition-colors cursor-pointer rounded-full"
+                      title="مسح كلمة البحث (X)"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                   {searchTerm.trim().length >= 2 && (
                     <button 
                       onClick={() => onSearchSubmit(searchTerm)}
@@ -169,9 +182,10 @@ export default function SearchModal({
                   )}
                   <button 
                     onClick={onClose}
-                    className="p-1 px-2 text-slate/30 hover:text-brand-red transition-colors cursor-pointer"
+                    className="p-1 px-1.5 text-slate-300 hover:text-brand-red transition-colors cursor-pointer border-r border-slate-200"
+                    title="إغلاق النافذة"
                   >
-                    <X size={14} />
+                    <X size={15} />
                   </button>
                 </div>
               </div>
@@ -232,9 +246,15 @@ export default function SearchModal({
                           {res.type === 'doctor' ? (
                             res.todayEvent ? (
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-emerald-100/80 text-emerald-800 border border-emerald-200/60">
-                                  اليوم
-                                </span>
+                                {(res as any).todayApologized ? (
+                                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-red-100 text-red-700 border border-red-200 shadow-2xs">
+                                    معتذر اليوم ❌
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-emerald-100/80 text-emerald-800 border border-emerald-200/60">
+                                    اليوم
+                                  </span>
+                                )}
                                 <AppointmentTimeBadge event={res.todayEvent} size="sm" showClockIcon={false} />
                               </div>
                             ) : (

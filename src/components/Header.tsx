@@ -12,15 +12,36 @@ interface HeaderProps {
   onSearchClick: () => void;
   onMenuClick: () => void;
   onOpenAdmin: () => void;
+  onNavigateHome?: () => void;
 }
 
-export default function Header({ onSearchClick, onMenuClick, onOpenAdmin }: HeaderProps) {
+export default function Header({ onSearchClick, onMenuClick, onOpenAdmin, onNavigateHome }: HeaderProps) {
+  const handleHomeClick = () => {
+    if (onNavigateHome) {
+      onNavigateHome();
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleScheduleClick = () => {
+    if (onNavigateHome) {
+      onNavigateHome();
+    }
+    setTimeout(() => {
+      const element = document.getElementById("schedule");
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+  };
+
   return (
     <header className="sticky top-0 z-[60] bg-white border-b border-slate-200 shadow-xs h-14 sm:h-16 flex items-center">
       <div className="max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between">
           {/* Logo & Name */}
-          <div className="flex items-center gap-2.5 group cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <div className="flex items-center gap-2.5 group cursor-pointer" onClick={handleHomeClick}>
             <div className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white flex items-center justify-center">
               <img 
                 src="/assets/om-elnour-logo.png" 
@@ -44,8 +65,18 @@ export default function Header({ onSearchClick, onMenuClick, onOpenAdmin }: Head
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center gap-6">
             <nav className="flex gap-6 text-[12px] font-black text-slate-600 uppercase tracking-widest">
-              <a href="#" className="hover:text-brand-blue transition-colors">الرئيسية</a>
-              <a href="#schedule" className="hover:text-brand-blue transition-colors">مواعيد الأطباء</a>
+              <button 
+                onClick={handleHomeClick} 
+                className="hover:text-brand-blue transition-colors cursor-pointer"
+              >
+                الرئيسية
+              </button>
+              <button 
+                onClick={handleScheduleClick} 
+                className="hover:text-brand-blue transition-colors cursor-pointer"
+              >
+                مواعيد الأطباء
+              </button>
             </nav>
             
             <div className="flex items-center gap-2.5">

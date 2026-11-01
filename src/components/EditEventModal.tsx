@@ -9,7 +9,7 @@ import { CALENDARS } from "../constants.ts";
 import { stripStatusEmojis } from "../lib/utils.ts";
 import axios from "axios";
 import { db } from "../lib/firebase.ts";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import ConfirmationModal from "./ConfirmationModal.tsx";
 
 interface EditEventModalProps {
@@ -78,12 +78,13 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
         setError(null);
 
         try {
+          const cleanDocName = stripStatusEmojis(doctorName.trim()).split(" - ")[0].trim();
           let statusPrefix = "";
           if (appointmentStatus === "apologized") statusPrefix = " - ❌ معتذر";
           else if (appointmentStatus === "exception") statusPrefix = " - ⚠️ استثناء";
           else if (appointmentStatus === "substitute") statusPrefix = " - ✔️ بديل";
 
-          const newSummary = `${doctorName.trim()}${statusPrefix}`;
+          const newSummary = `${cleanDocName}${statusPrefix}`;
           const startDateTime = `${appointmentDate}T${startTime}:00`;
           const endDateTime = `${appointmentDate}T${endTime}:00`;
 
@@ -96,18 +97,19 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
             recurrence = [`RRULE:FREQ=WEEKLY;BYDAY=${byDay};UNTIL=${untilStr}`];
           }
 
-          // 1. Update local storage custom events if applicable
-          const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-          const eventIndex = localEvents.findIndex((ev: any) => ev.id === event.id);
-          if (eventIndex !== -1) {
-            localEvents[eventIndex] = {
-              ...localEvents[eventIndex],
-              calendarId: selectedCalendarId,
-              summary: newSummary,
-              start: { dateTime: startDateTime },
-              end: { dateTime: endDateTime }
-            };
-            localStorage.setItem("omelnour_custom_events", JSON.stringify(localEvents));
+          const updatedEventData = {
+            id: event.id,
+            calendarId: selectedCalendarId,
+            summary: newSummary,
+            start: { dateTime: startDateTime },
+            end: { dateTime: endDateTime }
+          };
+
+          // Save to Firestore for cross-device sync
+          try {
+            await setDoc(doc(db, "custom_events", event.id), updatedEventData, { merge: true });
+          } catch (fbErr) {
+            console.warn("Firestore save custom event error:", fbErr);
           }
 
           // 2. If Google Calendar Event & token exists, update via Google Calendar API
@@ -365,11 +367,6 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
                     onConfirm: async () => {
                       setSaving(true);
                       try {
-                        // Delete from local
-                        const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-                        const filtered = localEvents.filter((ev: any) => ev.id !== event.id);
-                        localStorage.setItem("omelnour_custom_events", JSON.stringify(filtered));
-
                         // Delete from Google if applicable
                         if (googleAccessToken && event.id && !event.id.startsWith("local_")) {
                           const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;

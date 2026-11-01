@@ -18,6 +18,8 @@ import { CalendarResponse, CalendarInfo } from "../types.ts";
 import EditEventModal from "./EditEventModal.tsx";
 import ConfirmationModal from "./ConfirmationModal.tsx";
 import CompactDoctorScheduleModal from "./CompactDoctorScheduleModal.tsx";
+import SpecialtyIcon, { getCleanSpecialtyName, getVibrantSpecialtyColor, getSpecialtyHeaderBg } from "./SpecialtyIcon.tsx";
+import { getDefaultCustomEvents } from "../lib/defaultData.ts";
 
 interface AdminPanelProps {
   onRefresh: () => void;
@@ -126,9 +128,6 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
 
   const fetchCustomEvents = async () => {
     try {
-      const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-      setCustomEventsList(localEvents);
-
       const querySnapshot = await getDocs(collection(db, "custom_events"));
       const events: any[] = [];
       querySnapshot.forEach((docSnap) => {
@@ -136,12 +135,12 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
       });
       if (events.length > 0) {
         setCustomEventsList(events);
-        localStorage.setItem("omelnour_custom_events", JSON.stringify(events));
+      } else {
+        setCustomEventsList(getDefaultCustomEvents());
       }
     } catch (err) {
-      console.warn("Firestore fetch custom events failed, using local storage:", err);
-      const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-      setCustomEventsList(localEvents);
+      console.warn("Firestore fetch custom events warning:", err);
+      setCustomEventsList(getDefaultCustomEvents());
     }
   };
 
@@ -220,16 +219,9 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
             }
           }
 
-          // 2. Delete from local storage
-          const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-          const filtered = localEvents.filter((ev: any) => !eventIds.includes(ev.id));
-          localStorage.setItem("omelnour_custom_events", JSON.stringify(filtered));
-
-          // 3. Delete from Firestore
+          // Delete from Firestore
           for (const id of eventIds) {
-            if (!id.startsWith("local_")) {
-              try { await deleteDoc(doc(db, "custom_events", id)); } catch (e) {}
-            }
+            try { await deleteDoc(doc(db, "custom_events", id)); } catch (e) {}
           }
 
           alert("تم حذف الطبيب وجدوله بنجاح");
@@ -332,10 +324,6 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
             end: { dateTime: endDateTime },
           };
 
-          const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-          localEvents.push(newEventData);
-          localStorage.setItem("omelnour_custom_events", JSON.stringify(localEvents));
-
           try {
             await addDoc(collection(db, "custom_events"), {
               calendarId: selectedCalendarId,
@@ -345,7 +333,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
               createdAt: serverTimestamp()
             });
           } catch (fbErr) {
-            console.warn("Firestore addDoc warning (saved locally):", fbErr);
+            console.warn("Firestore addDoc warning:", fbErr);
           }
 
           setDoctorName("");
@@ -370,16 +358,10 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
       type: "danger",
       onConfirm: async () => {
         try {
-          const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-          const filtered = localEvents.filter((ev: any) => ev.id !== eventId);
-          localStorage.setItem("omelnour_custom_events", JSON.stringify(filtered));
-
-          if (!eventId.startsWith("local_")) {
-            try {
-              await deleteDoc(doc(db, "custom_events", eventId));
-            } catch (fbErr) {
-              console.warn("Firestore delete warning:", fbErr);
-            }
+          try {
+            await deleteDoc(doc(db, "custom_events", eventId));
+          } catch (fbErr) {
+            console.warn("Firestore delete warning:", fbErr);
           }
 
           await fetchCustomEvents();
@@ -421,12 +403,12 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
 
         <div className="flex-1 flex flex-col p-3 sm:p-6 lg:p-8 space-y-6 bg-slate-50/30">
           {loading ? (
-            <div className="flex-1 flex flex-col items-center justify-center py-32 gap-4">
+            <div className="flex-1 flex flex-col items-center justify-center py-12 sm:py-16 gap-3">
               <div className="relative">
-                <Loader2 className="animate-spin text-brand-blue" size={40} />
-                <div className="absolute inset-0 bg-brand-blue/10 blur-xl rounded-full" />
+                <Loader2 className="animate-spin text-brand-blue" size={28} />
+                <div className="absolute inset-0 bg-brand-blue/10 blur-md rounded-full" />
               </div>
-              <p className="font-black text-slate-400 text-[10px] sm:text-xs tracking-widest uppercase">جاري التحقق من الصلاحيات</p>
+              <p className="font-black text-slate-500 text-[11px] tracking-wide">جاري التحقق من الصلاحيات...</p>
             </div>
           ) : !isAdmin ? (
             <div className="flex-1 flex flex-col items-center justify-center max-w-sm mx-auto w-full py-12 sm:py-16 text-center animate-in fade-in zoom-in-95 duration-500">
@@ -775,76 +757,80 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
 
                   {/* Grouped Grid */}
                   <div className="space-y-4">
-                    {getGroupedDoctors().map(([specialty, doctorsMap]) => (
-                      <div key={specialty} className="space-y-3">
-                        <button 
-                          onClick={() => toggleClinic(specialty)}
-                          className="w-full flex items-center gap-2 sm:gap-3 px-1 hover:opacity-80 transition-opacity"
-                        >
-                           <div className="w-1.5 h-5 sm:w-2 sm:h-6 bg-brand-blue rounded-full shadow-sm" />
-                           <h5 className="font-black text-navy text-sm sm:text-lg tracking-tight">{specialty}</h5>
-                           <div className="h-px flex-1 bg-slate-200/60" />
-                           <div className="flex items-center gap-2">
-                             <span className="text-[8px] sm:text-[10px] font-black text-slate-400 bg-white border border-slate-100 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full shadow-sm">
-                               {Object.keys(doctorsMap).length} أطباء
-                             </span>
-                             <div className={`p-1 rounded-md bg-slate-100 text-slate-400 transition-transform ${expandedClinics[specialty] ? 'rotate-180' : ''}`}>
-                               <ChevronDown size={14} />
+                    {getGroupedDoctors().map(([specialty, doctorsMap]) => {
+                      const calInfo = calendars.find(c => c.name === specialty || c.id === specialty);
+                      const color = calInfo?.backgroundColor || calInfo?.color || "#1E3A8A";
+                      const darkColor = getVibrantSpecialtyColor(specialty, color);
+                      const headerBg = getSpecialtyHeaderBg(specialty, color);
+
+                      return (
+                        <div key={specialty} className="space-y-3">
+                          <button 
+                            onClick={() => toggleClinic(specialty)}
+                            className="w-full flex items-center justify-between p-3 sm:p-3.5 rounded-xl sm:rounded-2xl hover:opacity-95 transition-all text-right relative overflow-hidden bg-slate-900 text-white border-r-4 shadow-md select-none cursor-pointer"
+                            style={{ borderRightColor: darkColor }}
+                          >
+                             <div className="flex items-center gap-2 sm:gap-3 pr-1 min-w-0">
+                                <SpecialtyIcon specialty={specialty} size="md" showBackground />
+                                <h5 className="font-black text-xs sm:text-base leading-tight truncate text-white">
+                                  {getCleanSpecialtyName(specialty)} <span className="text-[11px] font-bold text-amber-300">({Object.keys(doctorsMap).length} أطباء)</span>
+                                </h5>
                              </div>
-                           </div>
-                        </button>
-                        
-                        <AnimatePresence>
-                          {expandedClinics[specialty] && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="flex flex-col gap-2 pt-1">
-                                {Object.values(doctorsMap).map((doc, idx) => (
-                                  <div key={idx} className="bg-white p-3 rounded-xl sm:rounded-2xl border border-slate-100 hover:bg-slate-50/50 transition-all flex items-center gap-3 group relative shadow-sm">
-                                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50 text-brand-blue flex items-center justify-center font-black text-sm sm:text-base shrink-0 border border-slate-200 shadow-inner group-hover:scale-105 transition-transform">
-                                      {doc.name.charAt(0)}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex flex-col">
-                                         <h5 className="font-black text-navy text-[13px] sm:text-[15px] truncate leading-tight group-hover:text-brand-blue transition-colors">
-                                           {doc.name}
-                                         </h5>
-                                         <div className="flex items-center gap-3 mt-1.5">
-                                            <button 
-                                              onClick={() => setSelectedDoctorForSchedule({ name: doc.name, specialty: doc.specialty, calendarId: doc.calendarId })}
-                                              className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-black text-amber-600 hover:text-white hover:bg-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 transition-all cursor-pointer active:scale-95"
-                                            >
-                                              <Pencil size={11} />
-                                              <span>تعديل الجدول</span>
-                                            </button>
-                                            <button 
-                                              onClick={() => handleDeleteDoctor(doc)}
-                                              className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-black text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-2.5 py-1 rounded-lg border border-red-100 transition-all cursor-pointer active:scale-95"
-                                            >
-                                              <Trash2 size={11} />
-                                              <span>حذف</span>
-                                            </button>
-                                         </div>
+                             <div className={`p-1.5 rounded-lg bg-white/10 text-white border border-white/20 shadow-2xs transition-transform ${expandedClinics[specialty] ? 'rotate-180' : ''}`}>
+                               <ChevronDown size={14} className="text-white" />
+                             </div>
+                          </button>
+                          
+                          <AnimatePresence>
+                            {expandedClinics[specialty] && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="flex flex-col gap-2 pt-1">
+                                  {Object.values(doctorsMap).map((doc, idx) => (
+                                    <div key={idx} className="bg-white p-3 rounded-xl sm:rounded-2xl border border-slate-100 hover:bg-slate-50/50 transition-all flex items-center gap-3 group relative shadow-sm">
+                                      <SpecialtyIcon specialty={doc.specialty} size="md" showBackground className="shrink-0 group-hover:scale-105 transition-transform" />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex flex-col">
+                                           <h5 className="font-black text-navy text-[13px] sm:text-[15px] truncate leading-tight group-hover:text-brand-blue transition-colors">
+                                             {doc.name}
+                                           </h5>
+                                           <div className="flex items-center gap-3 mt-1.5">
+                                              <button 
+                                                onClick={() => setSelectedDoctorForSchedule({ name: doc.name, specialty: doc.specialty, calendarId: doc.calendarId })}
+                                                className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-black text-amber-600 hover:text-white hover:bg-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-100 transition-all cursor-pointer active:scale-95"
+                                              >
+                                                <Pencil size={11} />
+                                                <span>تعديل الجدول</span>
+                                              </button>
+                                              <button 
+                                                onClick={() => handleDeleteDoctor(doc)}
+                                                className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-black text-red-500 hover:text-white hover:bg-red-500 bg-red-50 px-2.5 py-1 rounded-lg border border-red-100 transition-all cursor-pointer active:scale-95"
+                                              >
+                                                <Trash2 size={11} />
+                                                <span>حذف</span>
+                                              </button>
+                                           </div>
+                                        </div>
+                                      </div>
+                                      <div className="shrink-0 text-left">
+                                        <div className="flex flex-col items-center justify-center bg-slate-50 border border-slate-100 px-3 py-1 rounded-xl">
+                                          <span className="text-xs sm:text-sm font-black text-brand-blue">{doc.events.length}</span>
+                                          <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">موعد</span>
+                                        </div>
                                       </div>
                                     </div>
-                                    <div className="shrink-0 text-left">
-                                      <div className="flex flex-col items-center justify-center bg-slate-50 border border-slate-100 px-3 py-1 rounded-xl">
-                                        <span className="text-xs sm:text-sm font-black text-brand-blue">{doc.events.length}</span>
-                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">موعد</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ))}
+                                  ))}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
 
                     {getGroupedDoctors().length === 0 && (
                       <div className="py-20 sm:py-32 text-center space-y-4 sm:space-y-5 bg-white rounded-2xl border border-dashed border-slate-200 shadow-inner">

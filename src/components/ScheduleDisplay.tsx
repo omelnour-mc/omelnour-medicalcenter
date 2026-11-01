@@ -11,6 +11,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { CalendarResponse, AppSettings } from "../types.ts";
 import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
 import axios from "axios";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "../lib/firebase.ts";
 import { stripStatusEmojis, normalizeArabicQuery } from "../lib/utils.ts";
 import { FilterState } from "./FilterSidebar.tsx";
 import AppointmentTimeBadge from "./AppointmentTimeBadge.tsx";
@@ -20,6 +22,7 @@ import DailyClinicPosterModal from "./DailyClinicPosterModal.tsx";
 import SpecialtyIcon, { getCleanSpecialtyName, getVibrantSpecialtyColor, getSpecialtyHeaderBg } from "./SpecialtyIcon.tsx";
 import EditEventModal from "./EditEventModal.tsx";
 import ConfirmationModal from "./ConfirmationModal.tsx";
+import WeeklyTimelineView from "./WeeklyTimelineView.tsx";
 
 interface ScheduleTableProps {
   data: CalendarResponse[];
@@ -41,6 +44,7 @@ interface ScheduleTableProps {
   onRefresh?: () => void;
   calendars?: any[];
   filters?: FilterState;
+  onViewModeChange?: (mode: "today" | "week") => void;
 }
 
 
@@ -70,8 +74,10 @@ export default function ScheduleDisplay({
   googleAccessToken,
   onRefresh,
   calendars = CALENDARS,
-  filters
+  filters,
+  onViewModeChange
 }: ScheduleTableProps) {
+  const [weeklySubView, setWeeklySubView] = useState<"cards" | "timeline">("cards");
   const [updatingEventId, setUpdatingEventId] = useState<string | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [isDailyPosterOpen, setIsDailyPosterOpen] = useState(false);
@@ -92,8 +98,6 @@ export default function ScheduleDisplay({
   });
 
   const handleUpdateStatus = async (calendarId: string, eventId: string, currentSummary: string, statusIcon: string, statusLabel: string) => {
-    if (!googleAccessToken) return;
-    
     setConfirmConfig({
       isOpen: true,
       title: "تأكيد تغيير الحالة",
@@ -104,24 +108,44 @@ export default function ScheduleDisplay({
         setUpdateError(null);
         
         try {
-          const namePart = currentSummary.split("-")[0].trim();
-          const newSummary = `${namePart} - ${statusIcon} ${statusLabel}`;
+          const namePart = stripStatusEmojis(currentSummary).split(" - ")[0].trim();
+          const newSummary = statusIcon ? `${namePart} - ${statusIcon} ${statusLabel}` : namePart;
 
-          await axios.patch(
-            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
-            { summary: newSummary },
-            {
-              headers: {
-                Authorization: `Bearer ${googleAccessToken}`,
-                'Content-Type': 'application/json'
-              }
+          const updatedEventObj = {
+            id: eventId,
+            calendarId,
+            summary: newSummary
+          };
+
+          // Save to Firestore for permanent cross-device sync
+          try {
+            await setDoc(doc(db, "custom_events", eventId), updatedEventObj, { merge: true });
+          } catch (fbErr) {
+            console.warn("Firestore status update warning:", fbErr);
+          }
+
+          // 3. Update Google Calendar if token available
+          if (googleAccessToken) {
+            try {
+              await axios.patch(
+                `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+                { summary: newSummary },
+                {
+                  headers: {
+                    Authorization: `Bearer ${googleAccessToken}`,
+                    'Content-Type': 'application/json'
+                  }
+                }
+              );
+            } catch (googleErr) {
+              console.warn("Google Calendar patch warning:", googleErr);
             }
-          );
+          }
           
           if (onRefresh) onRefresh();
         } catch (err: any) {
           console.error("Error updating event:", err);
-          setUpdateError("فشل تحديث الحالة. تأكد من صلاحيات المشرف.");
+          setUpdateError("فشل تحديث الحالة. يرجى المحاولة لاحقاً.");
         } finally {
           setUpdatingEventId(null);
         }
@@ -130,7 +154,7 @@ export default function ScheduleDisplay({
   };
 
   const renderAdminControls = (calendarId: string, eventId: string, currentSummary: string) => {
-    if (!isAdmin || !googleAccessToken) return null;
+    if (!isAdmin) return null;
 
     const statuses = [
       { label: "مواعيد عادية", icon: "🟢", color: "text-green-600 bg-green-50" },
@@ -189,6 +213,15 @@ export default function ScheduleDisplay({
       return [];
     }
   }, [startDate, endDate]);
+
+  const weekRangeText = useMemo(() => {
+    if (days.length === 0) return "جدول الأسبوع";
+    const firstDay = days[0];
+    const lastDay = days[days.length - 1];
+    const startFmt = format(firstDay, "EEEE d MMMM", { locale: ar });
+    const endFmt = format(lastDay, "EEEE d MMMM yyyy", { locale: ar });
+    return `${startFmt} - ${endFmt}`;
+  }, [days]);
 
   const toggleSpecialty = (name: string) => {
     setExpandedSpecialties((prev: Record<string, boolean>) => ({ 
@@ -270,11 +303,19 @@ export default function ScheduleDisplay({
 
   const processEvent = (summary: string) => {
     const textToSearch = summary.toLowerCase();
-    if (textToSearch.includes("❌")) return { label: "معتذر", className: "text-brand-red border-brand-red/20 bg-brand-red/5" };
-    if (textToSearch.includes("✔️")) return { label: "بديل", className: "text-brand-blue border-brand-blue/20 bg-brand-blue/5" };
-    if (textToSearch.includes("⚠️")) return { label: "استثناء", className: "text-amber-600 border-amber-600/20 bg-amber-600/5" };
-    if (textToSearch.includes("🟢")) return { label: "مواعيد عادية", className: "text-green-600 border-green-600/20 bg-green-600/5" };
-    if (textToSearch.includes("❗")) return { label: "حجز مسبق", className: "text-brand-blue-dark border-brand-blue-dark/20 bg-brand-blue-dark/5" };
+    if (textToSearch.includes("❌") || textToSearch.includes("معتذر") || textToSearch.includes("اعتذر")) {
+      return { label: "معتذر ❌", className: "text-brand-red border-brand-red/30 bg-brand-red/10 font-black shadow-2xs" };
+    }
+    if (textToSearch.includes("✔️") || textToSearch.includes("بديل")) {
+      return { label: "بديل ✔️", className: "text-brand-blue border-brand-blue/30 bg-brand-blue/10 font-black shadow-2xs" };
+    }
+    if (textToSearch.includes("⚠️") || textToSearch.includes("استثناء")) {
+      return { label: "استثناء ⚠️", className: "text-amber-800 border-amber-500/40 bg-amber-100/90 font-black shadow-2xs" };
+    }
+    if (textToSearch.includes("🟢") || textToSearch.includes("مواعيد عادية")) return { label: null, className: "" };
+    if (textToSearch.includes("❗") || textToSearch.includes("حجز مسبق")) {
+      return { label: "حجز مسبق ❗", className: "text-brand-blue-dark border-brand-blue-dark/30 bg-brand-blue-dark/10 font-black shadow-2xs" };
+    }
     return { label: null, className: "" };
   };
 
@@ -322,7 +363,7 @@ export default function ScheduleDisplay({
     return (
       <div className="space-y-3 sm:space-y-4">
         {/* Single Compact Day Navigation */}
-        <div className="flex items-center justify-between bg-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl border border-slate-200/70 shadow-2xs">
+        <div className="flex items-center justify-between bg-white px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl sm:rounded-2xl border border-slate-200/70 shadow-2xs max-w-xl mx-auto w-full">
           <button 
             onClick={onPrevDay}
             className="flex items-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-slate-50 text-brand-blue border border-slate-200/80 rounded-lg font-black hover:bg-brand-blue hover:text-white transition-all text-xs active:scale-95 cursor-pointer"
@@ -337,9 +378,9 @@ export default function ScheduleDisplay({
             className="flex items-center justify-center cursor-pointer group px-3.5 py-1.5 bg-slate-50 hover:bg-blue-50/70 border border-slate-200/80 rounded-xl transition-all shadow-2xs"
             title="انقر لفتح التقويم والقفز لأي تاريخ"
           >
-            <div className="flex items-center gap-1.5 text-brand-blue">
-              <CalendarIcon size={14} className="shrink-0" />
-              <h4 className="font-black text-xs sm:text-sm text-center">
+            <div className="flex items-center gap-1.5 text-brand-red">
+              <CalendarIcon size={14} className="shrink-0 text-brand-red" />
+              <h4 className="font-black text-xs sm:text-sm text-center text-brand-red">
                 {format(days[0], "EEEE d MMMM yyyy", { locale: ar })}
               </h4>
             </div>
@@ -385,13 +426,16 @@ export default function ScheduleDisplay({
                   <button
                     type="button"
                     onClick={() => {
+                      if (onViewModeChange) onViewModeChange("week");
                       setExpandedSpecialties(prev => ({ ...prev, [group.specialty]: true }));
-                      const element = document.getElementById(`specialty-${group.specialty}`);
-                      if (element) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }
+                      setTimeout(() => {
+                        const element = document.getElementById(`specialty-${group.specialty}`);
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }, 150);
                     }}
-                    className="text-[10px] font-bold text-brand-blue bg-white/90 hover:bg-white border border-slate-200/60 px-2 py-1 rounded-md transition-colors shrink-0 flex items-center gap-0.5 active:scale-95 shadow-2xs"
+                    className="text-[10px] font-bold text-brand-blue bg-white/90 hover:bg-white border border-slate-200/60 px-2 py-1 rounded-md transition-colors shrink-0 flex items-center gap-0.5 active:scale-95 shadow-2xs cursor-pointer"
                   >
                     <span>عرض الأسبوع</span>
                     <ChevronLeft size={12} />
@@ -402,12 +446,23 @@ export default function ScheduleDisplay({
                 <div className="divide-y divide-slate-100 p-1.5 sm:p-2">
                   {group.doctors.map((docItem, dIdx) => {
                     const cleanDoc = stripStatusEmojis(docItem.doctor);
+                    const isApologizedToday = docItem.events.some(e => {
+                      const sum = (e.summary || "").toLowerCase();
+                      return sum.includes("❌") || sum.includes("معتذر") || sum.includes("اعتذر");
+                    });
+                    const isExceptionToday = docItem.events.some(e => {
+                      const sum = (e.summary || "").toLowerCase();
+                      return sum.includes("⚠️") || sum.includes("استثناء");
+                    });
+
                     return (
                       <div 
                         key={dIdx}
-                        className="p-2 rounded-lg hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-1.5"
+                        className={`p-2 rounded-lg transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 ${
+                          isApologizedToday ? "bg-red-50/60 hover:bg-red-50" : "hover:bg-slate-50/70"
+                        }`}
                       >
-                        {/* Doctor Name with Clinic Specialty Emoji Icon */}
+                        {/* Doctor Name with Clinic Specialty Emoji Icon & Status Badge */}
                         <div className="flex items-center gap-3 text-right group/doc min-w-0">
                           <button 
                             onClick={() => setSelectedDoctor({ name: cleanDoc, specialty: group.specialty })}
@@ -415,8 +470,18 @@ export default function ScheduleDisplay({
                             title={`عرض جدول مواعيد ${cleanDoc}`}
                           >
                             <SpecialtyIcon specialty={group.specialty} size="sm" showBackground className="shrink-0 group-hover/doc:scale-105 transition-transform" />
-                            <h4 className="font-extrabold text-navy text-[13px] sm:text-[14px] group-hover/doc:text-brand-blue cursor-pointer transition-colors leading-snug">
-                              {cleanDoc.startsWith("د.") || cleanDoc.startsWith("د/") ? cleanDoc : `د. ${cleanDoc}`}
+                            <h4 className="font-extrabold text-navy text-[13px] sm:text-[14px] group-hover/doc:text-brand-blue cursor-pointer transition-colors leading-snug flex items-center gap-1.5 flex-wrap">
+                              <span>{cleanDoc.startsWith("د.") || cleanDoc.startsWith("د/") ? cleanDoc : `د. ${cleanDoc}`}</span>
+                              {isApologizedToday && (
+                                <span className="bg-red-100 text-red-700 text-[10px] font-black px-1.5 py-0.2 rounded-md border border-red-200/80 shrink-0" title="معتذر اليوم">
+                                  ❌ معتذر
+                                </span>
+                              )}
+                              {isExceptionToday && (
+                                <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-1.5 py-0.2 rounded-md border border-amber-300/80 shrink-0" title="استثناء اليوم">
+                                  ⚠️ استثناء
+                                </span>
+                              )}
                             </h4>
                           </button>
                           
@@ -523,27 +588,24 @@ export default function ScheduleDisplay({
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleExpandAll}
-              className="px-2.5 py-1 text-[11px] font-black text-brand-blue bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center gap-1 active:scale-95 shrink-0"
+              className="p-1.5 text-brand-blue bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex items-center justify-center active:scale-95 shrink-0 cursor-pointer"
               title="توسيع الكل"
               aria-label="توسيع الكل"
             >
-              <ChevronsDown size={14} />
-              <span>توسيع</span>
+              <ChevronsDown size={16} />
             </button>
             <button
               onClick={handleCollapseAll}
-              className="px-2.5 py-1 text-[11px] font-black text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1 active:scale-95 shrink-0"
+              className="p-1.5 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors flex items-center justify-center active:scale-95 shrink-0 cursor-pointer"
               title="طي الكل"
               aria-label="طي الكل"
             >
-              <ChevronsUp size={14} />
-              <span>طي</span>
+              <ChevronsUp size={16} />
             </button>
           </div>
         </div>
 
         {Object.entries(groupedData).map(([specialty, { color, doctors }]) => {
-          // Count only doctors in this clinic that have at least 1 non-canceled appointment this week
           const activeWeeklyDoctors = Object.entries(doctors).filter(([_, daySchedules]) => {
             return Object.values(daySchedules).some(events => events.some(e => isEventActive(e)));
           });
@@ -552,7 +614,6 @@ export default function ScheduleDisplay({
 
           return (
             <div key={specialty} id={`specialty-${specialty}`} className="bg-white rounded-xl sm:rounded-2xl overflow-hidden border border-slate-200/80 shadow-2xs scroll-mt-24">
-              {/* Clinic Group Header - Rich Vibrant Dark Tint Background */}
               <button
                 onClick={() => toggleSpecialty(specialty)}
                 className="w-full flex items-center justify-between p-2.5 sm:p-3.5 hover:opacity-95 transition-all text-right relative overflow-hidden border-b border-slate-200/60 select-none shadow-2xs cursor-pointer"
@@ -587,7 +648,6 @@ export default function ScheduleDisplay({
                           : `د. ${cleanDocName}`;
                         const docKey = `${specialty}-${doctor}`;
                         const isExpanded = !!expandedDoctors[docKey];
-                        // Count only active (non-canceled) events for this doctor
                         const totalActiveEvents = Object.values(daySchedules).reduce((acc, evs) => {
                           return acc + evs.filter(e => isEventActive(e)).length;
                         }, 0);
@@ -597,12 +657,10 @@ export default function ScheduleDisplay({
                             key={doctor} 
                             className="bg-white rounded-xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all"
                           >
-                            {/* Doctor Card Row: Clean Doctor Name + Number Badge inline */}
                             <div 
                               onClick={() => toggleDoctor(docKey)}
                               className="p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 cursor-pointer hover:bg-blue-50/20 transition-colors select-none"
                             >
-                              {/* Doctor Specialty Icon + Doctor Name & Count */}
                               <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                                 <SpecialtyIcon specialty={specialty} size="sm" showBackground className="shrink-0" />
                                 <div className="min-w-0 flex-1 flex items-center gap-2 flex-wrap">
@@ -630,7 +688,6 @@ export default function ScheduleDisplay({
                                 </div>
                               </div>
 
-                              {/* Line 2 on Mobile / Right Side on Desktop: Action Buttons */}
                               <div className="flex items-center justify-between sm:justify-end gap-2 pt-1 border-t border-slate-100 sm:border-t-0 sm:pt-0 shrink-0">
                                 <button
                                   onClick={(e) => {
@@ -650,7 +707,6 @@ export default function ScheduleDisplay({
                               </div>
                             </div>
 
-                            {/* Collapsible Weekly Schedule Body */}
                             <AnimatePresence initial={false}>
                               {isExpanded && (
                                 <motion.div
@@ -659,151 +715,81 @@ export default function ScheduleDisplay({
                                   exit={{ height: 0, opacity: 0 }}
                                   className="border-t border-slate-100 overflow-hidden bg-slate-50/30"
                                 >
-                                  <div className="p-2 sm:p-3 space-y-2">
-                                    {/* Mobile Compact Weekly Schedule List (md:hidden) */}
-                                    <div className="md:hidden divide-y divide-slate-100 bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-2xs">
-                                      {days.map((day) => {
-                                        const dayKey = format(day, "yyyy-MM-dd");
-                                        const events = daySchedules[dayKey] || [];
-                                        const hasEvents = events.length > 0;
-                                        const isToday = isSameDay(day, startOfToday());
-
-                                        return (
-                                          <div 
-                                            key={dayKey}
-                                            className={`py-2 px-2.5 flex items-center justify-between gap-2 transition-colors ${
-                                              isToday ? "bg-amber-50/80 border-r-3 border-r-brand-red pr-2" : "hover:bg-slate-50/60"
-                                            }`}
-                                          >
-                                            {/* RIGHT: Day Name and Date */}
-                                            <div className="min-w-[80px] sm:min-w-[95px] shrink-0 text-right">
-                                              <div className="flex items-center gap-1">
-                                                <span className={`text-xs font-black leading-tight ${isToday ? "text-brand-red" : "text-navy"}`}>
-                                                  {format(day, "EEEE", { locale: ar })}
-                                                </span>
-                                                {isToday && (
-                                                  <span className="text-[8.5px] font-black px-1.5 py-0.2 bg-brand-red text-white rounded-full leading-none">
-                                                    اليوم
+                                  <div className="p-2 sm:p-3 overflow-x-auto">
+                                    <table className="w-full text-right border-collapse min-w-[700px] bg-white rounded-xl border border-slate-200/80 overflow-hidden shadow-2xs">
+                                      <thead>
+                                        <tr className="bg-slate-100/90 border-b border-slate-200 text-xs font-black text-navy">
+                                          {days.map((day) => {
+                                            const isToday = isSameDay(day, startOfToday());
+                                            return (
+                                              <th key={day.toISOString()} className={`p-2.5 text-center border-l border-slate-200/70 last:border-l-0 ${isToday ? "bg-amber-100/90 text-brand-red font-black" : ""}`}>
+                                                <div className="flex flex-col items-center gap-0.5">
+                                                  <span>{format(day, "EEEE", { locale: ar })}</span>
+                                                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md ${isToday ? "bg-brand-red text-white" : "text-slate-500 bg-white border border-slate-200/60"}`}>
+                                                    {format(day, "d MMMM", { locale: ar })}
                                                   </span>
-                                                )}
-                                              </div>
-                                              {settings.showDatesRow && (
-                                                <span className="text-[10px] text-slate-400 font-semibold block leading-tight mt-0.5">
-                                                  {format(day, "d MMMM", { locale: ar })}
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            {/* LEFT: All registered appointments or neutral dash '—' (NO 'مغلق') */}
-                                            <div className="flex-1 flex flex-wrap items-center justify-end gap-1.5 min-w-0">
-                                              {hasEvents ? (
-                                                events.map((event, idx) => {
-                                                  const { label, className } = processEvent(event.summary || "");
-                                                  const isCanceled = label === "معتذر";
-                                                  return (
-                                                    <div key={event.id || idx} className="flex items-center gap-1">
-                                                      {!isCanceled && <AppointmentTimeBadge event={event} size="sm" />}
-                                                      {label && (
-                                                        <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${className}`}>
-                                                          {label}
-                                                        </span>
-                                                      )}
-                                                       {isAdmin && (
-                                                        <button
-                                                          onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            const calObj = calendars.find(c => c.name === specialty || c.id === specialty);
-                                                            setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
-                                                          }}
-                                                          className="w-7 h-7 flex items-center justify-center bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-all cursor-pointer shadow-md shadow-amber-100 active:scale-95"
-                                                          title="تعديل الموعد"
-                                                        >
-                                                          <Pencil size={13} />
-                                                        </button>
-                                                      )}
-                                                    </div>
-                                                  );
-                                                })
-                                              ) : (
-                                                <span className="text-slate-300 font-bold text-sm select-none px-2" aria-label="لا توجد مواعيد">
-                                                  —
-                                                </span>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-
-                                    {/* Desktop / Tablet Layout (hidden md:grid) */}
-                                    <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
-                                      {days.map((day) => {
-                                        const dayKey = format(day, "yyyy-MM-dd");
-                                        const events = daySchedules[dayKey] || [];
-                                        const hasEvents = events.length > 0;
-                                        const isToday = isSameDay(day, startOfToday());
-
-                                        return (
-                                          <div 
-                                            key={dayKey} 
-                                            className={`p-3 rounded-2xl border transition-all ${
-                                              isToday 
-                                                ? "bg-amber-50/80 border-brand-red/40 shadow-xs ring-2 ring-brand-red/10" 
-                                                : hasEvents 
-                                                  ? "bg-blue-50/30 border-blue-100" 
-                                                  : "bg-slate-50/60 border-slate-100"
-                                            }`}
-                                          >
-                                            <div className={`flex justify-between items-center mb-2.5 p-1.5 rounded-lg ${isToday ? "bg-brand-red text-white" : "bg-white border border-slate-200/60 text-brand-blue"}`}>
-                                              <span className="text-[11px] font-black">
-                                                {format(day, "EEEE", { locale: ar })}
-                                              </span>
-                                              {settings.showDatesRow && (
-                                                <span className={`text-[10px] font-mono font-bold ${isToday ? "text-white/80" : "text-slate-400"}`}>
-                                                  {format(day, "dd/MM")}
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            <div className="space-y-1.5">
-                                              {events.map((event, idx) => {
-                                                const { label, className } = processEvent(event.summary || "");
-                                                const isCanceled = label === "معتذر";
-                                                return (
-                                                  <div key={event.id || idx} className="bg-white p-2 rounded-xl shadow-2xs border border-slate-100 flex flex-col gap-1 items-center">
-                                                    {!isCanceled && <AppointmentTimeBadge event={event} size="sm" className="w-full justify-center" />}
-                                                    {label && (
-                                                      <span className={`text-[9.5px] px-2 py-0.5 rounded font-black ${className}`}>
-                                                        {label}
-                                                      </span>
-                                                    )}
-                                                    {isAdmin && (
-                                                      <button
-                                                        onClick={(e) => {
-                                                          e.stopPropagation();
-                                                          const calObj = calendars.find(c => c.name === specialty || c.id === specialty);
-                                                          setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
-                                                        }}
-                                                        className="mt-1 px-2 py-0.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded text-[9px] font-black transition-colors w-full flex items-center justify-center gap-1 cursor-pointer"
-                                                        title="تعديل الموعد"
-                                                      >
-                                                        <Pencil size={10} />
-                                                        <span>تعديل</span>
-                                                      </button>
-                                                    )}
-                                                  </div>
-                                                );
-                                              })}
-                                              {!hasEvents && (
-                                                <div className="py-4 text-center">
-                                                  <span className="text-slate-300 font-bold text-base select-none">—</span>
                                                 </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
+                                              </th>
+                                            );
+                                          })}
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        <tr className="bg-white">
+                                          {days.map((day) => {
+                                            const dayKey = format(day, "yyyy-MM-dd");
+                                            const events = daySchedules[dayKey] || [];
+                                            const hasEvents = events.length > 0;
+                                            const isToday = isSameDay(day, startOfToday());
+
+                                            return (
+                                              <td key={dayKey} className={`p-2.5 text-center border-l border-slate-100 last:border-l-0 align-top ${isToday ? "bg-amber-50/40" : ""}`}>
+                                                {hasEvents ? (
+                                                  <div className="flex flex-col gap-1.5 items-center justify-center">
+                                                    {events.map((event, eIdx) => {
+                                                      const { label, className } = processEvent(event.summary || "");
+                                                      return (
+                                                        <div key={event.id || eIdx} className="w-full flex flex-col items-center gap-1">
+                                                          <AppointmentTimeBadge
+                                                            event={event}
+                                                            size="sm"
+                                                            layout="stacked"
+                                                            className="w-full justify-center"
+                                                          />
+                                                          {label && (
+                                                            <span className={`text-[9.5px] font-black px-1.5 py-0.5 rounded-md border w-full text-center ${className}`}>
+                                                              {label}
+                                                            </span>
+                                                          )}
+                                                          {isAdmin && (
+                                                            <button
+                                                              onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const calObj = calendars.find(c => c.name === specialty || c.id === specialty);
+                                                                setEditingEventInfo({ event, calendarId: event.calendarId || (calObj ? calObj.id : calendars[0].id) });
+                                                              }}
+                                                              className="mt-1 px-2 py-1 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg text-[9.5px] font-black transition-colors w-full flex items-center justify-center gap-1 cursor-pointer"
+                                                              title="تعديل الموعد"
+                                                            >
+                                                              <Pencil size={11} />
+                                                              <span>تعديل</span>
+                                                            </button>
+                                                          )}
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                ) : (
+                                                  <div className="py-6 text-center select-none">
+                                                    <span className="text-slate-300 font-bold text-base">—</span>
+                                                  </div>
+                                                )}
+                                              </td>
+                                            );
+                                          })}
+                                        </tr>
+                                      </tbody>
+                                    </table>
                                   </div>
                                 </motion.div>
                               )}
@@ -823,22 +809,63 @@ export default function ScheduleDisplay({
   };
 
   return (
-    <div id="schedule" className="space-y-4 sm:space-y-8" style={{ fontSize: `${settings.globalFontSize}%` }}>
-      <header className="flex items-center justify-between gap-4 py-2 sm:py-3 border-b border-slate-200/60">
+    <div id="schedule" className="space-y-4 sm:space-y-6" style={{ fontSize: `${settings.globalFontSize}%` }}>
+      <header className="flex flex-col sm:flex-row items-center justify-between gap-3 py-3 px-4 border border-slate-200/80 bg-white rounded-2xl shadow-2xs">
         <div className="flex items-center gap-3 sm:gap-4">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-brand-red rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md shadow-brand-red/20 shrink-0">
-             <CalendarIcon size={20} className="sm:size-7" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-red rounded-xl sm:rounded-2xl flex items-center justify-center text-white shadow-md shadow-brand-red/20 shrink-0">
+             <CalendarIcon size={20} className="sm:size-6" />
           </div>
-          <div>
-            <h2 className="text-base sm:text-2xl font-black text-brand-blue tracking-tight">
-              {viewMode === "today" ? "مواعيد اليوم" : "الجدول الأسبوعي العام"}
+          <div className="text-right">
+            <h2 className="text-base sm:text-xl font-black text-brand-blue tracking-tight">
+              {viewMode === "today" ? "مواعيد اليوم" : "جدول العيادات الأسبوعي"}
             </h2>
-            <p className="text-[9px] sm:text-xs font-bold text-slate-400 mt-0.5 uppercase tracking-wider">Om Elnour Medical Center</p>
+            <p className="text-[11px] font-extrabold text-slate-500 mt-0.5">
+              {viewMode === "today"
+                ? format(days[0] || startOfToday(), "EEEE d MMMM yyyy", { locale: ar })
+                : weekRangeText}
+            </p>
           </div>
         </div>
+
+        {/* In Weekly Mode: Toggle between Cards View and Timeline View */}
+        {viewMode === "week" && (
+          <div className="flex p-1 bg-slate-100 rounded-xl border border-slate-200/70 shrink-0">
+            <button
+              onClick={() => setWeeklySubView("cards")}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                weeklySubView === "cards" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <span>🗂️ عرض الكروت</span>
+            </button>
+            <button
+              onClick={() => setWeeklySubView("timeline")}
+              className={`px-3 py-1.5 rounded-lg font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                weeklySubView === "timeline" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <span>📊 جدول التايم لاين</span>
+            </button>
+          </div>
+        )}
       </header>
 
-      {viewMode === "today" ? renderTodayTable() : renderWeeklyAccordions()}
+      {viewMode === "today" ? (
+        renderTodayTable()
+      ) : weeklySubView === "timeline" ? (
+        <WeeklyTimelineView
+          data={data}
+          days={days}
+          calendars={calendars}
+          filters={filters}
+          onSelectDoctor={(doc) => setSelectedDoctor(doc)}
+          isAdmin={isAdmin}
+          onEditEvent={(event, calendarId) => setEditingEventInfo({ event, calendarId })}
+          settings={settings}
+        />
+      ) : (
+        renderWeeklyAccordions()
+      )}
 
       {/* Compact Doctor Schedule Modal */}
       {selectedDoctor && (

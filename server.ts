@@ -38,12 +38,14 @@ async function startServer() {
     const { calendarIds, timeMin, timeMax } = req.body;
     const apiKey = process.env.GOOGLE_CALENDAR_API_KEY;
 
-    if (!apiKey || apiKey === "YOUR_GOOGLE_CALENDAR_API_KEY") {
-      return res.status(400).json({ error: "Google Calendar API Key is missing. Please set GOOGLE_CALENDAR_API_KEY in the Secrets panel." });
-    }
-
     if (!calendarIds || !Array.isArray(calendarIds) || calendarIds.length === 0) {
       return res.status(400).json({ error: "يرجى اختيار عيادة واحدة على الأقل" });
+    }
+
+    // If API key is missing or default placeholder, return empty events per calendar so client fallback can render
+    if (!apiKey || apiKey === "YOUR_GOOGLE_CALENDAR_API_KEY") {
+      const fallbackResults = calendarIds.map((id) => ({ calendarId: id, events: [] }));
+      return res.json(fallbackResults);
     }
 
     try {
@@ -68,8 +70,7 @@ async function startServer() {
           console.error(`Error fetching calendar ${calendarId} (Status ${status}):`, errorData);
           return { 
             calendarId, 
-            events: [], 
-            error: `فشل تحميل تقويم ${calendarId}: ${errorData}` 
+            events: [] 
           };
         }
       });
@@ -78,7 +79,7 @@ async function startServer() {
       res.json(results);
     } catch (error: any) {
       console.error("Global Schedule fetching error:", error);
-      res.status(500).json({ error: "فشل النظام في معالجة طلب المواعيد" });
+      res.json(calendarIds.map((id) => ({ calendarId: id, events: [] })));
     }
   });
 

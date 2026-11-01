@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import { format, addDays, subDays, startOfToday, parseISO } from "date-fns";
 import { ar } from "date-fns/locale";
@@ -25,6 +25,7 @@ import { CalendarResponse, AppSettings, CalendarInfo } from "./types.ts";
 import { auth, db, getCachedToken, setCachedToken } from "./lib/firebase.ts";
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
+import { getDefaultCustomEvents } from "./lib/defaultData.ts";
 
 export default function App() {
   const [page, setPage] = useState<"home" | "search" | "admin">("home");
@@ -95,8 +96,15 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        const adminDoc = await getDoc(doc(db, "admins", user.uid));
-        setIsAdmin(adminDoc.exists());
+        try {
+          const adminDoc = await getDoc(doc(db, "admins", user.uid));
+          setIsAdmin(adminDoc.exists());
+        } catch (err) {
+          console.warn("Firestore admin check warning (offline):", err);
+          if (user.email === "omelnour.medicalcenter@gmail.com") {
+            setIsAdmin(true);
+          }
+        }
         // Try to recover token if we just signed in
         const token = getCachedToken();
         if (token) setGoogleAccessToken(token);
@@ -152,7 +160,7 @@ export default function App() {
     };
   }, []);
 
-  const [cache, setCache] = useState<Record<string, { data: CalendarResponse[], timestamp: number }>>({});
+  const cacheRef = useRef<Record<string, { data: CalendarResponse[]; timestamp: number }>>({});
 
   const fetchGlobalSearchData = useCallback(async () => {
     if (globalData.length > 0) return; 
@@ -167,8 +175,22 @@ export default function App() {
       });
       const data = response.data;
       try {
-        const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-        localEvents.forEach((ev: any) => {
+        let customEvents: any[] = [];
+        try {
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 1500));
+          const fsPromise = getDocs(collection(db, "custom_events"));
+          const querySnapshot = await Promise.race([fsPromise, timeoutPromise]) as any;
+          querySnapshot.forEach((docSnap: any) => {
+            customEvents.push({ id: docSnap.id, ...docSnap.data() });
+          });
+        } catch (fsErr) {
+          console.warn("Firestore custom_events fetch warning or timeout:", fsErr);
+        }
+
+        const totalApiEvents = data.reduce((acc: number, item: any) => acc + (item.events ? item.events.length : 0), 0);
+        const mergedEvents = customEvents.length > 0 ? customEvents : (totalApiEvents === 0 ? getDefaultCustomEvents() : []);
+
+        mergedEvents.forEach((ev: any) => {
           const targetCalRes = data.find((item: any) => item.calendarId === ev.calendarId);
           if (targetCalRes) {
             targetCalRes.events.push({
@@ -219,8 +241,8 @@ export default function App() {
     const { start: fetchStart, end: fetchEnd } = getWeekRange(parseISO(displayStart));
     const cacheKey = `${fetchStart}_${fetchEnd}_${targetCalendars.sort().join(",")}`;
     
-    // Simple 60s cache
-    const cached = cache[cacheKey];
+    // Simple 60s cache using ref
+    const cached = cacheRef.current[cacheKey];
     if (cached && Date.now() - cached.timestamp < 60000) {
       setScheduleData(cached.data);
       setLoading(false);
@@ -238,16 +260,40 @@ export default function App() {
       
       const apiData = response.data;
       try {
-        const localEvents = JSON.parse(localStorage.getItem("omelnour_custom_events") || "[]");
-        localEvents.forEach((ev: any) => {
+        let fsEvents: any[] = [];
+        try {
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 1500));
+          const fsPromise = getDocs(collection(db, "custom_events"));
+          const querySnapshot = await Promise.race([fsPromise, timeoutPromise]) as any;
+          querySnapshot.forEach((docSnap: any) => {
+            fsEvents.push({ id: docSnap.id, ...docSnap.data() });
+          });
+        } catch (fsErr) {
+          console.warn("Firestore custom_events fetch warning or timeout:", fsErr);
+        }
+
+        const totalApiEvents = apiData.reduce((acc: number, item: any) => acc + (item.events ? item.events.length : 0), 0);
+        const mergedCustomEvents = fsEvents.length > 0 ? fsEvents : (totalApiEvents === 0 ? getDefaultCustomEvents() : []);
+
+        mergedCustomEvents.forEach((ev: any) => {
           const targetCalRes = apiData.find((item: any) => item.calendarId === ev.calendarId);
           if (targetCalRes) {
-            targetCalRes.events.push({
-              id: ev.id,
-              summary: ev.summary,
-              start: ev.start,
-              end: ev.end
-            });
+            const existingIndex = targetCalRes.events.findIndex((e: any) => e.id === ev.id);
+            if (existingIndex !== -1) {
+              targetCalRes.events[existingIndex] = {
+                ...targetCalRes.events[existingIndex],
+                summary: ev.summary || targetCalRes.events[existingIndex].summary,
+                start: ev.start || targetCalRes.events[existingIndex].start,
+                end: ev.end || targetCalRes.events[existingIndex].end,
+              };
+            } else {
+              targetCalRes.events.push({
+                id: ev.id,
+                summary: ev.summary,
+                start: ev.start,
+                end: ev.end
+              });
+            }
           }
         });
       } catch (e) {
@@ -255,10 +301,7 @@ export default function App() {
       }
 
       setScheduleData(apiData);
-      setCache(prev => ({
-        ...prev,
-        [cacheKey]: { data: apiData, timestamp: Date.now() }
-      }));
+      cacheRef.current[cacheKey] = { data: apiData, timestamp: Date.now() };
     } catch (err: any) {
       console.error("Fetch error:", err);
       const serverMessage = err.response?.data?.error;
@@ -268,7 +311,7 @@ export default function App() {
       setLoading(false);
       setIsSidebarOpen(false);
     }
-  }, [filters.selectedCalendars, selectedCalendars, startDate, endDate, getWeekRange, cache]);
+  }, [filters.selectedCalendars, selectedCalendars, startDate, endDate, getWeekRange]);
 
   // Sync activeDate to startDate/endDate in today mode
   useEffect(() => {
@@ -302,12 +345,30 @@ export default function App() {
     window.print();
   };
 
+  const displayDateText = useMemo(() => {
+    if (viewMode === "today") {
+      return format(activeDate, "eeee، d MMMM yyyy", { locale: ar });
+    }
+    try {
+      const { start, end } = getWeekRange(activeDate);
+      const s = parseISO(start);
+      const e = parseISO(end);
+      return `${format(s, "EEEE d MMMM", { locale: ar })} - ${format(e, "EEEE d MMMM yyyy", { locale: ar })}`;
+    } catch {
+      return "الجدول الأسبوعي الكامل";
+    }
+  }, [viewMode, activeDate, getWeekRange]);
+
   return (
     <div className="min-h-screen flex flex-col bg-bg-main" dir="rtl">
       <Header 
         onSearchClick={() => setIsSearchModalOpen(true)} 
         onMenuClick={() => setIsNavMenuOpen(true)} 
         onOpenAdmin={() => setPage("admin")} 
+        onNavigateHome={() => {
+          setPage("home");
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
       {page === "home" && <Hero />}
       
@@ -334,43 +395,38 @@ export default function App() {
           <div className="space-y-4 sm:space-y-6 w-full">
             {/* View Controls Toolbar Sticky Container */}
             <div className="sticky top-14 sm:top-16 z-40 bg-bg-main/95 backdrop-blur-xs py-1.5 sm:py-0 transition-all">
-              <div className="bg-white p-2 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-4">
+              <div className="bg-white p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200/80 shadow-xs">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-2.5 sm:gap-4">
                   {/* View Modes Toggle */}
-                  <div className="flex p-0.5 bg-slate-100 rounded-lg sm:rounded-xl shrink-0">
+                  <div className="flex p-0.5 bg-slate-100 rounded-lg sm:rounded-xl shrink-0 w-full md:w-auto">
                     <button
                       onClick={() => setViewMode("today")}
-                      className={`flex-1 sm:px-5 py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-xs transition-all cursor-pointer ${viewMode === "today" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                      className={`flex-1 md:flex-none px-4 sm:px-5 py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-xs transition-all cursor-pointer ${viewMode === "today" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
                     >
                       جدول اليوم
                     </button>
                     <button
                       onClick={() => setViewMode("week")}
-                      className={`flex-1 sm:px-5 py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-xs transition-all cursor-pointer ${viewMode === "week" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
+                      className={`flex-1 md:flex-none px-4 sm:px-5 py-1.5 sm:py-2 rounded-md sm:rounded-lg font-black text-xs transition-all cursor-pointer ${viewMode === "week" ? "bg-white text-brand-blue shadow-2xs" : "text-slate-500 hover:text-slate-700"}`}
                     >
                       جدول الأسبوع
                     </button>
                   </div>
 
-                  {/* Middle: Date Info */}
+                  {/* Middle: Centered Date Info Pill */}
                   <div 
                     onClick={() => setIsDatePickerOpen(true)}
-                    className="flex items-center justify-between sm:justify-start gap-2 text-navy min-w-0 cursor-pointer bg-slate-50 hover:bg-blue-50/60 px-3.5 py-1.5 rounded-xl border border-slate-200/80 transition-all shadow-2xs"
+                    className="flex items-center justify-center gap-2 text-navy cursor-pointer bg-slate-50 hover:bg-blue-50/70 px-4 py-2 rounded-xl border border-slate-200/80 transition-all shadow-2xs w-full md:w-auto text-center"
                     title="انقر لفتح التقويم والانتقال لتاريخ محدد"
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <CalendarIcon className="text-brand-blue w-3.5 h-3.5 shrink-0" />
-                      <span className="font-black text-xs sm:text-sm leading-tight truncate">
-                        {viewMode === "today" 
-                          ? format(activeDate, "eeee، d MMMM yyyy", { locale: ar })
-                          : "الجدول الأسبوعي الكامل"
-                        }
-                      </span>
-                    </div>
+                    <CalendarIcon className="text-brand-red w-4 h-4 shrink-0" />
+                    <span className="font-black text-xs sm:text-sm leading-tight text-navy">
+                      {displayDateText}
+                    </span>
                   </div>
 
                   {/* Actions Toolbar */}
-                  <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <div className="flex items-center justify-end gap-1.5 sm:gap-2 shrink-0 w-full md:w-auto">
                     <button 
                       onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                       className={`p-2 rounded-lg transition-all cursor-pointer ${isSettingsOpen ? 'bg-brand-blue text-white' : 'bg-slate-100 text-slate-600 hover:text-brand-blue'}`}
@@ -380,16 +436,8 @@ export default function App() {
                       <SettingsIcon size={15} />
                     </button>
                     <button 
-                      onClick={handlePrint}
-                      className="p-2 bg-slate-100 text-slate-600 hover:text-brand-blue rounded-lg transition-all cursor-pointer"
-                      title="طباعة الجدول"
-                      aria-label="طباعة الجدول"
-                    >
-                      <Printer size={15} />
-                    </button>
-                    <button 
                       onClick={() => setIsSidebarOpen(true)}
-                      className={`flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${isSidebarOpen ? 'bg-brand-blue text-white shadow-xs' : 'bg-brand-blue text-white hover:bg-brand-blue-dark shadow-2xs'}`}
+                      className={`flex-1 md:flex-none px-3.5 py-2 rounded-lg font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer ${isSidebarOpen ? 'bg-brand-blue text-white shadow-xs' : 'bg-brand-blue text-white hover:bg-brand-blue-dark shadow-2xs'}`}
                     >
                       <Filter size={13} />
                       <span>تصفية المواعيد</span>
@@ -452,21 +500,14 @@ export default function App() {
                         setSelectedDoctor={setSelectedDoctor}
                         isAdmin={isAdmin}
                         googleAccessToken={googleAccessToken}
-                        onRefresh={() => fetchSchedule()}
+                        onRefresh={() => {
+                          cacheRef.current = {};
+                          fetchSchedule();
+                        }}
                         calendars={dynamicCalendars}
                         filters={filters}
+                        onViewModeChange={setViewMode}
                       />
-                      
-                      {/* Action Buttons */}
-                      <div className="mt-6 flex justify-end gap-3 print:hidden">
-                        <button
-                          onClick={handlePrint}
-                          className="bg-brand-blue/10 text-brand-blue px-6 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 hover:bg-brand-blue hover:text-white transition-all cursor-pointer"
-                        >
-                          <Printer size={16} />
-                          طباعة الجدول
-                        </button>
-                      </div>
                     </div>
                   )}
 
