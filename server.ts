@@ -82,12 +82,36 @@ async function startServer() {
     }
   });
 
-  // API Route for updating events via Service Account
+  // API Route for updating events via User Token or Service Account
   app.patch("/api/update-event", async (req, res) => {
     const { calendarId, eventId, summary, start, end, editScope } = req.body;
+    const authHeader = req.headers.authorization;
     
+    // 1. If user provided Bearer OAuth token, proxy request to Google Calendar
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        const patchRes = await axios.patch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+          { summary, start, end },
+          {
+            headers: {
+              Authorization: authHeader,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        return res.json({ success: true, data: patchRes.data });
+      } catch (err: any) {
+        console.error("Error updating via user token:", err.response?.data || err.message);
+        return res.status(err.response?.status || 500).json({ 
+          error: "فشل تحديث التقويم عبر حساب Google: " + (err.response?.data?.error?.message || err.message) 
+        });
+      }
+    }
+
+    // 2. Fallback to Service Account if configured
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-      return res.status(500).json({ error: "Service account credentials not configured" });
+      return res.status(401).json({ error: "يرجى تسجيل الدخول بحساب Google (المشرف) لتعديل مواعيد التقويم." });
     }
 
     try {
@@ -125,12 +149,32 @@ async function startServer() {
     res.json({ isAdmin: adminEmails.includes(email) });
   });
 
-  // API Route for deleting events via Service Account
+  // API Route for deleting events via User Token or Service Account
   app.delete("/api/delete-event", async (req, res) => {
     const { calendarId, eventId, scope } = req.body;
+    const authHeader = req.headers.authorization;
     
+    // 1. If user provided Bearer OAuth token, proxy request to Google Calendar
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      try {
+        await axios.delete(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+          {
+            headers: { Authorization: authHeader }
+          }
+        );
+        return res.json({ success: true });
+      } catch (err: any) {
+        console.error("Error deleting via user token:", err.response?.data || err.message);
+        return res.status(err.response?.status || 500).json({ 
+          error: "فشل حذف الموعد عبر حساب Google: " + (err.response?.data?.error?.message || err.message) 
+        });
+      }
+    }
+
+    // 2. Fallback to Service Account if configured
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
-      return res.status(500).json({ error: "Service account credentials not configured" });
+      return res.status(401).json({ error: "يرجى تسجيل الدخول بحساب Google (المشرف) لحذف مواعيد التقويم." });
     }
 
     try {
@@ -143,10 +187,6 @@ async function startServer() {
 
       const { google } = await import('googleapis');
       const calendar = google.calendar({ version: 'v3', auth });
-
-      // If scope is 'upcoming' or 'all', we need to handle recurring event series
-      // This is complex. For free implementation, simple delete should work for single events,
-      // and for recurring events, we need the event ID of the series.
       
       await calendar.events.delete({
         calendarId: calendarId,

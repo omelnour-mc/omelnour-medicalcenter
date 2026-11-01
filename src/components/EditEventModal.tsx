@@ -7,6 +7,7 @@ import { useState } from "react";
 import { X, Calendar, Clock, Stethoscope, Shield, Check, AlertTriangle, Loader2 } from "lucide-react";
 import { CALENDARS } from "../constants.ts";
 import { stripStatusEmojis } from "../lib/utils.ts";
+import { getCachedToken } from "../lib/firebase.ts";
 import axios from "axios";
 import ConfirmationModal from "./ConfirmationModal.tsx";
 
@@ -117,25 +118,57 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
             end: { dateTime: endDateTime }
           };
 
-          // 2. If Google Calendar Event & exists, update via backend proxy
+          // 2. If Google Calendar Event & exists, update via direct token or backend proxy
           if (event.id && !event.id.startsWith("local_")) {
-            try {
-              const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;
-              
-              const patchBody: any = {
-                calendarId: selectedCalendarId,
-                eventId: targetEventId,
-                summary: newSummary,
-                start: { dateTime: startDateTime, timeZone: "Africa/Cairo" },
-                end: { dateTime: endDateTime, timeZone: "Africa/Cairo" }
-              };
+            const token = googleAccessToken || getCachedToken();
+            const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;
+            
+            const patchBody: any = {
+              calendarId: selectedCalendarId,
+              eventId: targetEventId,
+              summary: newSummary,
+              start: { dateTime: startDateTime, timeZone: "Africa/Cairo" },
+              end: { dateTime: endDateTime, timeZone: "Africa/Cairo" }
+            };
 
-              // Add timeout to axios call
-              await axios.patch("/api/update-event", { ...patchBody, editScope }, { timeout: 10000 });
+            let updatedSuccessfully = false;
 
-            } catch (apiErr: any) {
-              console.error("Server-side calendar update error:", apiErr);
-              throw new Error("فشل تحديث التقويم: " + (apiErr.response?.data?.error || apiErr.message));
+            // Option A: Direct Google Calendar API with user token
+            if (token) {
+              try {
+                await axios.patch(
+                  `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(selectedCalendarId)}/events/${targetEventId}`,
+                  { summary: newSummary, start: patchBody.start, end: patchBody.end },
+                  {
+                    headers: {
+                      Authorization: `Bearer ${token}`,
+                      'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                  }
+                );
+                updatedSuccessfully = true;
+              } catch (googleApiErr) {
+                console.warn("Direct Google API patch error, falling back to server proxy...", googleApiErr);
+              }
+            }
+
+            // Option B: Proxy via backend endpoint
+            if (!updatedSuccessfully) {
+              try {
+                const headers: Record<string, string> = {};
+                if (token) headers.Authorization = `Bearer ${token}`;
+
+                await axios.patch(
+                  "/api/update-event",
+                  { ...patchBody, editScope },
+                  { headers, timeout: 10000 }
+                );
+              } catch (apiErr: any) {
+                console.error("Server-side calendar update error:", apiErr);
+                const errorMsg = apiErr.response?.data?.error || apiErr.message;
+                throw new Error(errorMsg);
+              }
             }
           }
 
@@ -407,15 +440,29 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
                       try {
                         const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;
 
+                        const token = googleAccessToken || getCachedToken();
+                        let deletedSuccessfully = false;
+
                         // Delete from Google if user token exists
-                        if (googleAccessToken && event.id && !event.id.startsWith("local_")) {
-                          await axios.delete(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(selectedCalendarId)}/events/${targetEventId}`, {
-                            headers: { Authorization: `Bearer ${googleAccessToken}` }
-                          });
-                        } else if (event.id && !event.id.startsWith("local_")) {
-                          // Or delete via backend service account
+                        if (token && event.id && !event.id.startsWith("local_")) {
+                          try {
+                            await axios.delete(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(selectedCalendarId)}/events/${targetEventId}`, {
+                              headers: { Authorization: `Bearer ${token}` }
+                            });
+                            deletedSuccessfully = true;
+                          } catch (gDelErr) {
+                            console.warn("Direct Google delete error, trying backend...", gDelErr);
+                          }
+                        }
+
+                        // Or delete via backend proxy
+                        if (!deletedSuccessfully && event.id && !event.id.startsWith("local_")) {
+                          const headers: Record<string, string> = {};
+                          if (token) headers.Authorization = `Bearer ${token}`;
+
                           await axios.delete("/api/delete-event", {
-                            data: { calendarId: selectedCalendarId, eventId: targetEventId, scope: editScope }
+                            data: { calendarId: selectedCalendarId, eventId: targetEventId, scope: editScope },
+                            headers
                           });
                         }
                         

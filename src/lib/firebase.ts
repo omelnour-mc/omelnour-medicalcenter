@@ -15,9 +15,24 @@ let cachedAccessToken: string | null = null;
 
 export const setCachedToken = (token: string | null) => {
   cachedAccessToken = token;
+  if (token) {
+    try { sessionStorage.setItem("google_calendar_token", token); } catch (_) {}
+  } else {
+    try { sessionStorage.removeItem("google_calendar_token"); } catch (_) {}
+  }
 };
 
-export const getCachedToken = () => cachedAccessToken;
+export const getCachedToken = () => {
+  if (cachedAccessToken) return cachedAccessToken;
+  try {
+    const stored = sessionStorage.getItem("google_calendar_token");
+    if (stored) {
+      cachedAccessToken = stored;
+      return stored;
+    }
+  } catch (_) {}
+  return null;
+};
 
 export const googleSignIn = async () => {
   try {
