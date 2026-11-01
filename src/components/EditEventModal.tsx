@@ -112,34 +112,24 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
             console.warn("Firestore save custom event error:", fbErr);
           }
 
-          // 2. If Google Calendar Event & token exists, update via Google Calendar API
-          if (googleAccessToken && event.id && !event.id.startsWith("local_")) {
+          // 2. If Google Calendar Event & exists, update via backend proxy
+          if (event.id && !event.id.startsWith("local_")) {
             try {
               const targetEventId = (editScope === "all" && event.recurringEventId) ? event.recurringEventId : event.id;
               
               const patchBody: any = {
+                calendarId: selectedCalendarId,
+                eventId: targetEventId,
                 summary: newSummary,
                 start: { dateTime: startDateTime, timeZone: "Africa/Cairo" },
                 end: { dateTime: endDateTime, timeZone: "Africa/Cairo" }
               };
 
-              if (editScope === "all") {
-                patchBody.recurrence = recurrence;
-              }
-
-              await axios.patch(
-                `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(selectedCalendarId)}/events/${targetEventId}`,
-                patchBody,
-                {
-                  headers: {
-                    Authorization: `Bearer ${googleAccessToken}`,
-                    'Content-Type': 'application/json'
-                  }
-                }
-              );
+              await axios.patch("/api/update-event", patchBody);
 
             } catch (apiErr: any) {
-              console.warn("Google Calendar API update warning:", apiErr);
+              console.error("Server-side calendar update error:", apiErr);
+              throw new Error("فشل تحديث التقويم: " + (apiErr.response?.data?.error || apiErr.message));
             }
           }
 

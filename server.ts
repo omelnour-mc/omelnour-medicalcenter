@@ -42,7 +42,6 @@ async function startServer() {
       return res.status(400).json({ error: "يرجى اختيار عيادة واحدة على الأقل" });
     }
 
-    // If API key is missing or default placeholder, return empty events per calendar so client fallback can render
     if (!apiKey || apiKey === "YOUR_GOOGLE_CALENDAR_API_KEY") {
       const fallbackResults = calendarIds.map((id) => ({ calendarId: id, events: [] }));
       return res.json(fallbackResults);
@@ -80,6 +79,42 @@ async function startServer() {
     } catch (error: any) {
       console.error("Global Schedule fetching error:", error);
       res.json(calendarIds.map((id) => ({ calendarId: id, events: [] })));
+    }
+  });
+
+  // API Route for updating events via Service Account
+  app.patch("/api/update-event", async (req, res) => {
+    const { calendarId, eventId, summary, start, end } = req.body;
+    
+    if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || !process.env.GOOGLE_PRIVATE_KEY) {
+      return res.status(500).json({ error: "Service account credentials not configured" });
+    }
+
+    try {
+      const { JWT } = await import('google-auth-library');
+      const auth = new JWT({
+        email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+        scopes: ['https://www.googleapis.com/auth/calendar.events'],
+      });
+
+      const { google } = await import('googleapis');
+      const calendar = google.calendar({ version: 'v3', auth });
+
+      await calendar.events.patch({
+        calendarId: calendarId,
+        eventId: eventId,
+        requestBody: {
+          summary,
+          start,
+          end,
+        },
+      });
+
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error updating calendar event via Service Account:", err);
+      res.status(500).json({ error: "فشل تحديث الموعد: " + err.message });
     }
   });
 

@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.0.025",
+  "version": "1.0.026",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -22,6 +22,8 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.13.0",
+    "google-auth-library": "^11.3.2",
+    "googleapis": "^189.0.0",
     "html-to-image": "^1.11.13",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
