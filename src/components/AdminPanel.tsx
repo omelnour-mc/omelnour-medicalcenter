@@ -308,7 +308,8 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
                   headers: {
                     Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                  }
+                  },
+                  timeout: 10000
                 }
               );
             } catch (googleErr) {

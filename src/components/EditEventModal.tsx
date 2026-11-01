@@ -125,7 +125,8 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
                 end: { dateTime: endDateTime, timeZone: "Africa/Cairo" }
               };
 
-              await axios.patch("/api/update-event", patchBody);
+              // Add timeout to axios call
+              await axios.patch("/api/update-event", patchBody, { timeout: 10000 });
 
             } catch (apiErr: any) {
               console.error("Server-side calendar update error:", apiErr);
