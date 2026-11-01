@@ -22,6 +22,7 @@ interface EditEventModalProps {
 export default function EditEventModal({ isOpen, onClose, event, calendarId, googleAccessToken, onRefresh }: EditEventModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Confirmation Modal State
   const [confirmConfig, setConfirmConfig] = useState<{
@@ -160,6 +161,11 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
 
         {/* Body */}
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4 custom-scrollbar">
+          {successMessage && (
+              <div className="bg-green-50 text-emerald-800 p-3 rounded-xl border border-green-200 font-black text-xs text-center animate-in fade-in">
+                  {successMessage}
+              </div>
+          )}
           
           <div className="space-y-1.5">
             <label className="text-xs font-black text-navy block">العيادة التخصصية</label>
