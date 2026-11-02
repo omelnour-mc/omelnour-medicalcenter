@@ -11,7 +11,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { CalendarResponse, AppSettings } from "../types.ts";
 import { CALENDARS, CONTACT_PHONE } from "../constants.ts";
 import axios from "axios";
-import { stripStatusEmojis, normalizeArabicQuery } from "../lib/utils.ts";
+import { stripStatusEmojis, normalizeArabicQuery, extractCleanDoctorName } from "../lib/utils.ts";
+import { getCachedToken } from "../lib/firebase.ts";
 import { FilterState } from "./FilterSidebar.tsx";
 import AppointmentTimeBadge from "./AppointmentTimeBadge.tsx";
 import { getAppointmentTimeInfo } from "../lib/timeUtils.ts";
@@ -107,8 +108,9 @@ export default function ScheduleDisplay({
         setUpdateError(null);
         
         try {
-          const namePart = stripStatusEmojis(currentSummary).split(" - ")[0].trim();
-          const newSummary = statusIcon ? `${namePart} - ${statusIcon} ${statusLabel}` : namePart;
+          const namePart = extractCleanDoctorName(currentSummary);
+          // Write only emoji without status words to Google Calendar
+          const newSummary = (statusIcon && statusIcon !== "🟢") ? `${namePart} ${statusIcon}` : namePart;
 
           const updatedEventObj = {
             id: eventId,
@@ -116,22 +118,33 @@ export default function ScheduleDisplay({
             summary: newSummary
           };
 
-          // 3. Update Google Calendar if token available
-          if (googleAccessToken) {
+          // 3. Update Google Calendar if token available (direct or proxy)
+          const token = googleAccessToken || getCachedToken();
+          if (token) {
             try {
               await axios.patch(
                 `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
                 { summary: newSummary },
                 {
                   headers: {
-                    Authorization: `Bearer ${googleAccessToken}`,
+                    Authorization: `Bearer ${token}`,
                     'Content-Type': 'application/json'
                   }
                 }
               );
             } catch (googleErr) {
-              console.warn("Google Calendar patch warning:", googleErr);
+              console.warn("Google Calendar patch warning, trying proxy:", googleErr);
+              await axios.patch(
+                "/api/update-event",
+                { calendarId, eventId, summary: newSummary },
+                { headers: { Authorization: `Bearer ${token}` } }
+              );
             }
+          } else {
+            await axios.patch(
+              "/api/update-event",
+              { calendarId, eventId, summary: newSummary }
+            );
           }
           
           if (onRefresh) onRefresh();
@@ -239,9 +252,8 @@ export default function ScheduleDisplay({
 
       calRes.events.forEach((event) => {
         const title = event.summary || "طبيب غير مسمى";
-        // Extract doctor name before the first hyphen if present
-        const rawDoctorName = title.split("-")[0].trim();
-        const cleanDocPart = stripStatusEmojis(rawDoctorName).split("•")[0].trim();
+        // Extract doctor name cleanly without status emojis or words
+        const cleanDocPart = extractCleanDoctorName(title).split("•")[0].trim();
 
         // Filter 1: Doctor Name Search Query
         if (filters?.doctorQuery) {
@@ -439,7 +451,7 @@ export default function ScheduleDisplay({
                 {/* Doctors List under this Clinic */}
                 <div className="divide-y divide-slate-100 p-1.5 sm:p-2">
                   {group.doctors.map((docItem, dIdx) => {
-                    const cleanDoc = stripStatusEmojis(docItem.doctor);
+                    const cleanDoc = extractCleanDoctorName(docItem.doctor);
                     const isApologizedToday = docItem.events.some(e => {
                       const sum = (e.summary || "").toLowerCase();
                       return sum.includes("❌") || sum.includes("معتذر") || sum.includes("اعتذر");
@@ -636,7 +648,7 @@ export default function ScheduleDisplay({
                   >
                     <div className="p-2 sm:p-3 space-y-2">
                       {Object.entries(doctors).map(([doctor, daySchedules]) => {
-                        const cleanDocName = stripStatusEmojis(doctor).split("•")[0].trim();
+                        const cleanDocName = extractCleanDoctorName(doctor).split("•")[0].trim();
                         const docDisplayName = cleanDocName.startsWith("د.") || cleanDocName.startsWith("د/") 
                           ? cleanDocName 
                           : `د. ${cleanDocName}`;

@@ -8,7 +8,7 @@ import { format, isSameDay, startOfToday, parseISO } from "date-fns";
 import { ar } from "date-fns/locale";
 import { Search, Filter, Calendar as CalendarIcon, Pencil, ChevronLeft, Eye, EyeOff, Check, User, X } from "lucide-react";
 import { CalendarResponse, AppSettings } from "../types.ts";
-import { stripStatusEmojis, normalizeArabicQuery } from "../lib/utils.ts";
+import { stripStatusEmojis, normalizeArabicQuery, extractCleanDoctorName } from "../lib/utils.ts";
 import AppointmentTimeBadge from "./AppointmentTimeBadge.tsx";
 import SpecialtyIcon, { getCleanSpecialtyName, getVibrantSpecialtyColor, getSpecialtyHeaderBg } from "./SpecialtyIcon.tsx";
 import { FilterState } from "./FilterSidebar.tsx";
@@ -103,8 +103,7 @@ export default function WeeklyTimelineView({
 
       calRes.events.forEach((event) => {
         const title = event.summary || "طبيب غير مسمى";
-        const rawDoctorName = title.split("-")[0].trim();
-        const cleanDocPart = stripStatusEmojis(rawDoctorName).split("•")[0].trim();
+        const cleanDocPart = extractCleanDoctorName(title).split("•")[0].trim();
 
         // Local or external doctor name filter
         const query = localDoctorQuery || filters?.doctorQuery || "";
@@ -124,7 +123,7 @@ export default function WeeklyTimelineView({
 
         if (!root[specialtyName].doctors[docKey]) {
           root[specialtyName].doctors[docKey] = {
-            rawName: rawDoctorName,
+            rawName: cleanDocPart,
             cleanName: cleanDocPart.startsWith("د.") || cleanDocPart.startsWith("د/") ? cleanDocPart : `د. ${cleanDocPart}`,
             dayEvents: {},
           };

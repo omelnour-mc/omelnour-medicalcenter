@@ -19,6 +19,19 @@ export function stripStatusEmojis(name: string): string {
 }
 
 /**
+ * Extracts pure doctor name without status emojis, hyphens, or status words (معتذر، استثناء، بديل، إلخ).
+ */
+export function extractCleanDoctorName(input: string): string {
+  if (!input) return "";
+  let name = stripStatusEmojis(input);
+  // Remove hyphens followed by status words if present
+  name = name.split(/\s*[-•]\s*/)[0];
+  // Remove trailing status words if any
+  name = name.replace(/\s+(معتذر|اعتذر|استثناء|بديل|مواعيد عادية|حجز مسبق)\s*$/gi, "");
+  return name.trim();
+}
+
+/**
  * Normalizes input string for robust Arabic text matching and search.
  * Handles emojis, doctor prefixes, Arabic diacritics, and letter variations.
  */

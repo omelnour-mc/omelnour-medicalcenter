@@ -6,12 +6,12 @@
 import { useState, useEffect } from "react";
 import { LogIn, LogOut, Shield, ShieldCheck, Building2, Check, X, AlertTriangle, Calendar, Plus, Trash2, Stethoscope, ArrowRight, Loader2, Search, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Pencil } from "lucide-react";
 import { signOut, onAuthStateChanged, User } from "firebase/auth";
-import { auth, googleSignIn, setCachedToken, getCachedToken } from "../lib/firebase.ts";
+import { auth, googleSignIn, setCachedToken, getCachedToken, setSupervisorSession, isSupervisorSessionActive, clearSupervisorSession } from "../lib/firebase.ts";
 import { motion, AnimatePresence } from "motion/react";
 import axios from "axios";
 import { format, addDays } from "date-fns";
 import { CALENDARS } from "../constants.ts";
-import { stripStatusEmojis, normalizeArabicQuery } from "../lib/utils.ts";
+import { stripStatusEmojis, normalizeArabicQuery, extractCleanDoctorName } from "../lib/utils.ts";
 
 import { CalendarResponse, CalendarInfo } from "../types.ts";
 import EditEventModal from "./EditEventModal.tsx";
@@ -26,11 +26,12 @@ interface AdminPanelProps {
   onBackToHome: () => void;
   scheduleData?: CalendarResponse[];
   calendars?: CalendarInfo[];
+  onLogout?: () => void;
 }
 
-export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, scheduleData = [], calendars = CALENDARS }: AdminPanelProps) {
+export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, scheduleData = [], calendars = CALENDARS, onLogout }: AdminPanelProps) {
   const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,19 +74,25 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
   const [untilDate, setUntilDate] = useState(format(addDays(new Date(), 90), "yyyy-MM-dd"));
 
   useEffect(() => {
-    // Ensure we do NOT auto-login, always require re-authentication for security.
+    // Session is strictly in-memory per user request (no auto-login saved on computer)
+    setIsAdmin(false);
+
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
         try {
           const response = await axios.post("/api/check-admin", { email: u.email });
-          setIsAdmin(response.data.isAdmin);
+          if (response.data.isAdmin) {
+            setIsAdmin(true);
+            setSupervisorSession(true);
+          }
         } catch (e) {
           console.warn("Admin check warning:", e);
-          setIsAdmin(false);
         }
       } else {
-        setIsAdmin(false);
+        if (!isSupervisorSessionActive()) {
+          setIsAdmin(false);
+        }
       }
       setLoading(false);
     });
@@ -102,6 +109,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
       if (result.token) {
         onTokenReceived(result.token);
         setIsAdmin(true);
+        setSupervisorSession(true, result.token);
         setActiveTab("add");
       }
     } catch (err: any) {
@@ -127,7 +135,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
       
       calRes.events.forEach(ev => {
         const title = ev.summary || "";
-        const cleanName = stripStatusEmojis(title).split("-")[0].trim();
+        const cleanName = extractCleanDoctorName(title);
         
         if (searchNormalized && !normalizeArabicQuery(cleanName).includes(searchNormalized)) {
             return;
@@ -207,7 +215,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
     
     if (passwordInput === secretPassword) {
       setIsAdmin(true);
-      // sessionStorage.setItem("omelnour_password_admin", "true"); // Disabled for security
+      setSupervisorSession(true);
       setActiveTab("manage"); 
       
       const token = getCachedToken();
@@ -219,9 +227,9 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
 
   const handleLogout = () => {
     signOut(auth);
+    clearSupervisorSession();
     setIsAdmin(false);
-    setCachedToken(null);
-    // sessionStorage.removeItem("omelnour_password_admin");
+    if (onLogout) onLogout();
   };
 
   const handleAddDoctorAppointment = async (e: React.FormEvent) => {
@@ -241,12 +249,12 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
         setError(null);
 
         try {
-          let statusPrefix = "";
-          if (appointmentStatus === "apologized") statusPrefix = " - ❌ معتذر";
-          else if (appointmentStatus === "exception") statusPrefix = " - ⚠️ استثناء";
-          else if (appointmentStatus === "substitute") statusPrefix = " - ✔️ بديل";
+          const cleanName = extractCleanDoctorName(doctorName.trim());
+          let summary = cleanName;
+          if (appointmentStatus === "apologized") summary = `${cleanName} ❌`;
+          else if (appointmentStatus === "exception") summary = `${cleanName} ⚠️`;
+          else if (appointmentStatus === "substitute") summary = `${cleanName} ✔️`;
 
-          const summary = `${doctorName.trim()}${statusPrefix}`;
           const startDateTime = `${appointmentDate}T${startTime}:00`;
           const endDateTime = `${appointmentDate}T${endTime}:00`;
 
@@ -376,7 +384,7 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
               <div className="space-y-3 mb-8 sm:mb-10">
                 <h3 className="text-xl sm:text-2xl font-black text-navy">تسجيل دخول المشرف</h3>
                 <p className="text-slate-400 font-bold text-[10px] sm:text-xs leading-relaxed">
-                  قم بتسجيل الدخول بكلمة المرور السرية المعتمدة للإدارة أو حساب Google.
+                  قم بتسجيل الدخول بكلمة المرور السرية المعتمدة للإدارة.
                 </p>
               </div>
 
@@ -403,8 +411,15 @@ export default function AdminPanel({ onRefresh, onTokenReceived, onBackToHome, s
                 </button>
               </form>
 
+
+              <div className="mt-6 p-3 bg-slate-50 rounded-xl border border-slate-200 text-right w-full">
+                <p className="text-[10.5px] text-slate-600 font-bold leading-relaxed">
+                  🔒 <span className="font-extrabold text-navy">حماية الأجهزة المشتركة:</span> تم إلغاء الحفظ التلقائي في المتصفح، حتى لا تظهر صلاحيات وتعديلات المواعيد لأي شخص يفتح الصفحة من أجهزة المركز.
+                </p>
+              </div>
+
               {error && (
-                <div className="mt-6 sm:mt-8 w-full bg-red-50 text-brand-red p-4 rounded-xl flex items-center gap-3 border border-red-100 font-bold text-[10px] sm:text-[11px] animate-in slide-in-from-top-2">
+                <div className="mt-4 w-full bg-red-50 text-brand-red p-4 rounded-xl flex items-center gap-3 border border-red-100 font-bold text-[10px] sm:text-[11px] animate-in slide-in-from-top-2">
                   <AlertTriangle size={14} className="sm:w-4 sm:h-4 shrink-0" />
                   <span>{error}</span>
                 </div>

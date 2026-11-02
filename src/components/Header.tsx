@@ -13,9 +13,10 @@ interface HeaderProps {
   onMenuClick: () => void;
   onOpenAdmin: () => void;
   onNavigateHome?: () => void;
+  isAdmin?: boolean;
 }
 
-export default function Header({ onSearchClick, onMenuClick, onOpenAdmin, onNavigateHome }: HeaderProps) {
+export default function Header({ onSearchClick, onMenuClick, onOpenAdmin, onNavigateHome, isAdmin }: HeaderProps) {
   const handleHomeClick = () => {
     if (onNavigateHome) {
       onNavigateHome();
@@ -82,11 +83,16 @@ export default function Header({ onSearchClick, onMenuClick, onOpenAdmin, onNavi
             <div className="flex items-center gap-2.5">
               <button
                 onClick={onOpenAdmin}
-                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/80 rounded-xl text-xs font-black transition-all shadow-2xs cursor-pointer"
-                title="تسجيل دخول المشرف وتعديل المواعيد"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition-all shadow-2xs cursor-pointer border ${
+                  isAdmin 
+                    ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-300"
+                    : "bg-amber-50 text-amber-800 hover:bg-amber-100 border-amber-200/80"
+                }`}
+                title={isAdmin ? "جلسة المشرف نشطة - تعديل المواعيد متاح" : "تسجيل دخول المشرف وتعديل المواعيد"}
               >
-                <ShieldCheck size={16} className="text-amber-700" />
-                <span>إدارة المواعيد</span>
+                {isAdmin && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+                <ShieldCheck size={16} className={isAdmin ? "text-emerald-700" : "text-amber-700"} />
+                <span>{isAdmin ? "المشرف (نشط)" : "إدارة المواعيد"}</span>
               </button>
 
               <button 
@@ -111,11 +117,16 @@ export default function Header({ onSearchClick, onMenuClick, onOpenAdmin, onNavi
           <div className="flex items-center gap-1.5 md:hidden">
             <button
               onClick={onOpenAdmin}
-              className="p-2 bg-amber-50 text-amber-800 rounded-lg transition-colors border border-amber-200/80 cursor-pointer"
-              title="إدارة المواعيد"
+              className={`p-2 rounded-lg transition-colors border cursor-pointer relative ${
+                isAdmin 
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                  : "bg-amber-50 text-amber-800 border-amber-200/80"
+              }`}
+              title={isAdmin ? "جلسة المشرف نشطة" : "إدارة المواعيد"}
               aria-label="إدارة المواعيد"
             >
-              <ShieldCheck size={16} className="text-amber-700" />
+              {isAdmin && <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500" />}
+              <ShieldCheck size={16} className={isAdmin ? "text-emerald-700" : "text-amber-700"} />
             </button>
             <button 
               onClick={onSearchClick}

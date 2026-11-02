@@ -22,7 +22,7 @@ import ScrollToTop from "./components/ScrollToTop.tsx";
 import DatePickerModal from "./components/DatePickerModal.tsx";
 import { CALENDARS } from "./constants.ts";
 import { CalendarResponse, AppSettings, CalendarInfo } from "./types.ts";
-import { auth, getCachedToken, setCachedToken } from "./lib/firebase.ts";
+import { auth, getCachedToken, setCachedToken, isSupervisorSessionActive, setSupervisorSession, clearSupervisorSession } from "./lib/firebase.ts";
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
 import { getDefaultCustomEvents } from "./lib/defaultData.ts";
 
@@ -57,11 +57,29 @@ export default function App() {
   const [selectedDoctor, setSelectedDoctor] = useState<{ name: string; specialty: string } | null>(null);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 
-  // Admin and Auth State
+  // Admin and Auth State (strictly in-memory during active session, no auto-login saved on computer)
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(null);
   const [dynamicCalendars, setDynamicCalendars] = useState<CalendarInfo[]>(CALENDARS);
+
+  const handleTokenReceived = useCallback((token: string) => {
+    setGoogleAccessToken(token);
+    setCachedToken(token);
+    setSupervisorSession(true, token);
+    setIsAdmin(true);
+  }, []);
+
+  const handleAdminLogout = useCallback(async () => {
+    try {
+      const { signOut } = await import("firebase/auth");
+      await signOut(auth);
+    } catch (_) {}
+    clearSupervisorSession();
+    setIsAdmin(false);
+    setGoogleAccessToken(null);
+    setCurrentUser(null);
+  }, []);
 
   useEffect(() => {
     const fetchColors = async () => {
@@ -92,23 +110,30 @@ export default function App() {
   }, [googleAccessToken]);
 
   useEffect(() => {
+    // No automatic login saving on shared computers: start fresh in public visitor view
+    clearSupervisorSession();
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
         try {
           const response = await axios.post("/api/check-admin", { email: user.email });
-          setIsAdmin(response.data.isAdmin);
+          if (response.data.isAdmin) {
+            setIsAdmin(true);
+            setSupervisorSession(true);
+          }
         } catch (err) {
           console.warn("Admin check failed:", err);
-          setIsAdmin(false);
         }
-        // Try to recover token if we just signed in
         const token = getCachedToken();
-        if (token) setGoogleAccessToken(token);
+        if (token) {
+          setGoogleAccessToken(token);
+          setSupervisorSession(true, token);
+        }
       } else {
         setIsAdmin(false);
         setGoogleAccessToken(null);
-        setCachedToken(null);
+        clearSupervisorSession();
       }
     });
     return unsubscribe;
@@ -302,6 +327,7 @@ export default function App() {
           setPage("home");
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        isAdmin={isAdmin}
       />
       {page === "home" && <Hero />}
       
@@ -312,7 +338,8 @@ export default function App() {
               fetchSchedule();
               fetchGlobalSearchData(true);
             }}
-            onTokenReceived={setGoogleAccessToken}
+            onTokenReceived={handleTokenReceived}
+            onLogout={handleAdminLogout}
             onBackToHome={() => setPage("home")}
             scheduleData={globalData.length > 0 ? globalData : scheduleData}
             calendars={dynamicCalendars}

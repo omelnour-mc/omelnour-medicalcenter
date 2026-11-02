@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { X, Calendar, Clock, Stethoscope, Shield, Check, AlertTriangle, Loader2 } from "lucide-react";
 import { CALENDARS } from "../constants.ts";
-import { stripStatusEmojis } from "../lib/utils.ts";
+import { stripStatusEmojis, extractCleanDoctorName } from "../lib/utils.ts";
 import { getCachedToken } from "../lib/firebase.ts";
 import axios from "axios";
 import ConfirmationModal from "./ConfirmationModal.tsx";
@@ -41,7 +41,7 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
   });
 
   const rawSummary = event?.summary || "";
-  const doctorNameClean = stripStatusEmojis(rawSummary).split(" - ")[0].trim();
+  const doctorNameClean = extractCleanDoctorName(rawSummary);
   
   const [doctorName, setDoctorName] = useState(doctorNameClean);
   const [selectedCalendarId, setSelectedCalendarId] = useState(calendarId);
@@ -91,13 +91,11 @@ export default function EditEventModal({ isOpen, onClose, event, calendarId, goo
         setError(null);
 
         try {
-          const cleanDocName = stripStatusEmojis(doctorName.trim()).split(" - ")[0].trim();
-          let statusPrefix = "";
-          if (appointmentStatus === "apologized") statusPrefix = " - ❌ معتذر";
-          else if (appointmentStatus === "exception") statusPrefix = " - ⚠️ استثناء";
-          else if (appointmentStatus === "substitute") statusPrefix = " - ✔️ بديل";
-
-          const newSummary = `${cleanDocName}${statusPrefix}`;
+          const cleanDocName = extractCleanDoctorName(doctorName.trim());
+          let newSummary = cleanDocName;
+          if (appointmentStatus === "apologized") newSummary = `${cleanDocName} ❌`;
+          else if (appointmentStatus === "exception") newSummary = `${cleanDocName} ⚠️`;
+          else if (appointmentStatus === "substitute") newSummary = `${cleanDocName} ✔️`;
           const startDateTime = `${appointmentDate}T${startTime}:00`;
           const endDateTime = `${appointmentDate}T${endTime}:00`;
 
